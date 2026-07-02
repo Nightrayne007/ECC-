@@ -1,11 +1,14 @@
-# Aegis000 — Phase 1 + Phase 2
+# Aegis000 — Phases 1–3
 
 See `CLAUDE.md` for the full build brief. Phase 1 scaffold: real-time
 transcription (mock adapter for local dev), a 100%-coverage QA scoring
 engine, a vocal-distress analysis engine, an immutable audit log, and a
 supervisor dashboard shell. Phase 2: live translation of non-English caller
 speech and automated CAD field pre-fill (draft only — see
-`docs/failover-design.md`). Phases 3–4 remain interface-only stubs.
+`docs/failover-design.md`). Phase 3: on-demand caller media (photo/livestream)
+built native — a single-use, time-limited invite backbone with a swappable
+media store and transport (photo capture is fully functional; live video
+transport is the SFU swap-in). Phase 4 remains an interface-only stub.
 
 ## Local dev quickstart
 
@@ -56,6 +59,12 @@ Translation (`backend/app/translation/`) and CAD field extraction
 (`backend/app/cad/`) both follow `AEGIS_LLM_PROVIDER` too — `mock` (default)
 uses deterministic/heuristic local logic, `claude` routes through the same
 `src/llm` abstraction as QA scoring.
+
+Caller media (`backend/app/livestream/`) uses `AEGIS_LIVESTREAM_PROVIDER`
+(`mock` default vs `webrtc` for a real SFU) and `AEGIS_MEDIA_STORE` (`local`
+dev filesystem vs an AU-region `object` store). The invite secret
+(`AEGIS_MEDIA_INVITE_SECRET`) MUST be changed from its dev default for any
+real deployment.
 
 See `backend/.env.example` for all settings.
 

@@ -28,6 +28,15 @@ manual. This is enforced in code, not just documented here.
   write. The dashboard (`frontend/src/components/CadPrefillPanel.tsx`)
   reflects this in the UI with an explicit "DRAFT — not submitted
   automatically" banner, not just in the backend.
+- **On-demand caller media (`backend/app/livestream/`, Phase 3) is
+  human-initiated and consent-gated.** A photo/livestream is only ever
+  requested by a call-taker action (`POST /api/calls/{id}/media-sessions`),
+  and only ever delivered because the caller chose to open the single-use
+  invite and upload/join. Nothing in the media path gates or blocks
+  answering the 000 call; a media request failing (or the SFU being
+  unreachable) has no effect on call-taking. The invite is time-limited and
+  single-use (`backend/app/livestream/tokens.py` + session-status check in
+  `backend/app/services/media.py`) so a leaked link cannot be replayed.
 
 ## Failure Modes & Degradation Behaviour
 

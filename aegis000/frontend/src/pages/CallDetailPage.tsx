@@ -1,26 +1,29 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { fetchAuditTrail, fetchCallDetail } from "../api/client";
+import { fetchAuditTrail, fetchCallDetail, fetchCallMedia } from "../api/client";
 import AudioPlayerStub from "../components/AudioPlayerStub";
 import CadPrefillPanel from "../components/CadPrefillPanel";
+import CallMediaPanel from "../components/CallMediaPanel";
 import DistressBadge from "../components/DistressBadge";
 import FlagPill from "../components/FlagPill";
 import RubricBreakdown from "../components/RubricBreakdown";
 import TranscriptViewer from "../components/TranscriptViewer";
-import type { AuditEntryOut, CallDetailOut } from "../types/call";
+import type { AuditEntryOut, CallDetailOut, MediaSessionSummaryOut } from "../types/call";
 
 export default function CallDetailPage() {
   const { callId } = useParams<{ callId: string }>();
   const [call, setCall] = useState<CallDetailOut | null>(null);
   const [audit, setAudit] = useState<AuditEntryOut[] | null>(null);
+  const [media, setMedia] = useState<MediaSessionSummaryOut[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!callId) return;
-    Promise.all([fetchCallDetail(callId), fetchAuditTrail(callId)])
-      .then(([callDetail, auditTrail]) => {
+    Promise.all([fetchCallDetail(callId), fetchAuditTrail(callId), fetchCallMedia(callId)])
+      .then(([callDetail, auditTrail, callMedia]) => {
         setCall(callDetail);
         setAudit(auditTrail);
+        setMedia(callMedia);
       })
       .catch((e: Error) => setError(e.message));
   }, [callId]);
@@ -98,6 +101,11 @@ export default function CallDetailPage() {
         <div>
           <h3 className="mb-2 text-sm font-medium">CAD Pre-fill</h3>
           <CadPrefillPanel prefill={call.cad_prefill} />
+        </div>
+
+        <div>
+          <h3 className="mb-2 text-sm font-medium">Caller Media</h3>
+          {callId && <CallMediaPanel callId={callId} sessions={media} onChange={setMedia} />}
         </div>
 
         {audit && (

@@ -99,6 +99,33 @@ export interface CallDetailOut {
   cad_prefill: CadPrefillOut | null;
 }
 
+export interface MediaSessionOut {
+  session_id: string;
+  media_type: string;
+  status: string;
+  invite_token: string;
+  join_url: string;
+  transport: string;
+  expires_at: string;
+}
+
+export interface MediaAssetOut {
+  id: string;
+  session_id: string;
+  media_type: string;
+  content_type: string;
+  byte_size: number;
+  sha256: string;
+}
+
+export interface MediaSessionSummaryOut {
+  id: string;
+  media_type: string;
+  status: string;
+  expires_at: string;
+  assets: MediaAssetOut[];
+}
+
 export interface AuditEntryOut {
   id: string;
   action: string;

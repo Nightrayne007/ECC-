@@ -36,6 +36,20 @@
   it is still an AI-derived summary of caller-reported information and
   should be scoped in the risk register (extraction accuracy, a wrong or
   missed location, a call-taker over-trusting the draft).
+- **On-demand caller media** (`backend/app/livestream/`, `backend/app/services/media.py`)
+  — photos and (in a real deployment) live video captured from a caller's
+  own device at a call-taker's request. This is among the most sensitive
+  data the system holds: it can depict injuries, minors, bystanders,
+  interiors of homes, and other people who never consented. Controls
+  already in code: single-use, time-limited invite tokens
+  (`backend/app/livestream/tokens.py`); the caller must actively opt in by
+  opening the invite and uploading; media stored behind a `MediaStore`
+  interface so production can enforce an **AU-region, encrypted,
+  access-controlled** object store (the dev `LocalMediaStore` is not for
+  production). Risk register must cover: third-party subjects in the media,
+  retention/deletion of media assets (tie to `AEGIS_RETENTION_DAYS`),
+  and access control on the asset-fetch endpoint (RBAC — currently open in
+  the scaffold, must be gated before deployment).
 - Agent identifiers and performance scores
 - Audit log entries (model version, input/output hashes, snapshots)
 

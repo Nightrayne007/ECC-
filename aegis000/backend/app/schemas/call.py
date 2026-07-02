@@ -93,6 +93,41 @@ class CadPrefillOut(BaseModel):
     model_version: str
 
 
+class MediaSessionRequestIn(BaseModel):
+    media_type: str
+
+
+class MediaSessionOut(BaseModel):
+    session_id: str
+    media_type: str
+    status: str
+    invite_token: str
+    join_url: str
+    transport: str
+    expires_at: datetime
+
+
+class MediaAssetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    session_id: str
+    media_type: str
+    content_type: str
+    byte_size: int
+    sha256: str
+
+
+class MediaSessionSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    media_type: str
+    status: str
+    expires_at: datetime
+    assets: list[MediaAssetOut]
+
+
 class CallSummaryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

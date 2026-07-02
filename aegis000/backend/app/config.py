@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     AEGIS_LLM_PROVIDER: Literal["mock", "claude"] = "mock"
     AEGIS_TRANSCRIPTION_ADAPTER: Literal["mock", "hosted"] = "mock"
     AEGIS_DISTRESS_ANALYZER: Literal["mock", "signal"] = "mock"
+    AEGIS_LIVESTREAM_PROVIDER: Literal["mock", "webrtc"] = "mock"
+    AEGIS_MEDIA_STORE: Literal["local", "object"] = "local"
 
     # Explicit AU data residency — must never fall back to a provider default.
     AEGIS_DATA_REGION: str = "ap-southeast-2"
@@ -23,6 +25,14 @@ class Settings(BaseSettings):
 
     ANTHROPIC_API_KEY: str | None = None
     STT_ENDPOINT_URL: str | None = None
+
+    # On-demand caller media (Phase 3). The invite secret MUST be overridden
+    # with a strong random value in any real deployment.
+    AEGIS_MEDIA_INVITE_SECRET: str = "dev-insecure-invite-secret-change-me"
+    AEGIS_MEDIA_INVITE_TTL_SECONDS: int = 900
+    AEGIS_MEDIA_LOCAL_DIR: str = "/tmp/aegis-media"
+    AEGIS_MEDIA_INVITE_BASE_URL: str = "http://localhost:5173"
+    AEGIS_LIVESTREAM_SFU_ENDPOINT: str | None = None
 
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
 
