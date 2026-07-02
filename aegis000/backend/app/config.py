@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     AEGIS_LLM_PROVIDER: Literal["mock", "claude"] = "mock"
     AEGIS_TRANSCRIPTION_ADAPTER: Literal["mock", "hosted"] = "mock"
+    AEGIS_DISTRESS_ANALYZER: Literal["mock", "signal"] = "mock"
 
     # Explicit AU data residency — must never fall back to a provider default.
     AEGIS_DATA_REGION: str = "ap-southeast-2"

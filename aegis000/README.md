@@ -2,7 +2,8 @@
 
 See `CLAUDE.md` for the full build brief. This is the Phase 1 scaffold:
 real-time transcription (mock adapter for local dev), a 100%-coverage QA
-scoring engine, an immutable audit log, and a supervisor dashboard shell.
+scoring engine, a vocal-distress analysis engine, an immutable audit log,
+and a supervisor dashboard shell.
 
 ## Local dev quickstart
 
@@ -41,6 +42,13 @@ pytest
   Requires `ANTHROPIC_API_KEY`.
 - `AEGIS_TRANSCRIPTION_ADAPTER=hosted` — routes transcription through a
   configurable `STT_ENDPOINT_URL` instead of the mock adapter.
+- `AEGIS_DISTRESS_ANALYZER=signal` — routes vocal-distress analysis through
+  `backend/app/distress/signal_analyzer.py`, real numpy signal processing
+  (autocorrelation pitch tracking + RMS energy spike detection) instead of
+  the transcript-derived mock heuristics. Requires wiring a real audio
+  source (raw PCM) into its `audio_loader`; not connected to a real source
+  in Phase 1, but the DSP itself is genuine and unit-tested against
+  synthetic sine-wave audio.
 
 See `backend/.env.example` for all settings.
 

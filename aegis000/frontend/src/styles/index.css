@@ -15,9 +15,10 @@
   --seq-track: #e1e0d9;
   --seq-450: #2a78d6;
 
-  /* Status palette — reserved for flag severity, never a series color */
+  /* Status palette — reserved for flag/distress severity, never a series color */
   --status-critical: #d03b3b;
   --status-serious: #ec835a;
+  --status-warning: #fab219;
   --status-good: #0ca30c;
 }
 

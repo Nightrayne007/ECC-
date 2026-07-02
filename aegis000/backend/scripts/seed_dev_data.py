@@ -1,8 +1,8 @@
 """Seed local dev data end-to-end through the real pipeline.
 
-Runs transcription (mock) -> QA scoring (mock) -> audit log -> DB, so the
-dashboard has real, varied data without any external services beyond
-Postgres, and without any API keys.
+Runs transcription (mock) -> distress analysis (mock) -> QA scoring (mock)
+-> audit log -> DB, so the dashboard has real, varied data without any
+external services beyond Postgres, and without any API keys.
 
 Usage: python scripts/seed_dev_data.py
 """
@@ -13,6 +13,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 from app.db import AsyncSessionLocal, init_models
+from app.distress.mock_analyzer import MockDistressAnalyzer
 from app.ingestion.failover import PipelineFailure
 from app.models.agent import Agent
 from app.pipeline.process_call import run_pipeline_for_call
@@ -36,6 +37,7 @@ async def main() -> None:
     rubric = load_rubric(RUBRIC_PATH)
     adapter = MockTranscriptionAdapter()
     model = MockScoringModel()
+    distress_analyzer = MockDistressAnalyzer()
 
     async with AsyncSessionLocal() as session:
         agents: dict[str, Agent] = {}
@@ -56,6 +58,7 @@ async def main() -> None:
                 transcription_adapter=adapter,
                 scoring_model=model,
                 rubric=rubric,
+                distress_analyzer=distress_analyzer,
                 started_at=started_at,
             )
             if isinstance(result, PipelineFailure):

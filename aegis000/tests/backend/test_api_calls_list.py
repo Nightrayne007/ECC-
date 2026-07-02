@@ -1,6 +1,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.distress.mock_analyzer import MockDistressAnalyzer
 from app.main import app
 from app.models.agent import Agent
 from app.pipeline.process_call import run_pipeline_for_call
@@ -24,6 +25,7 @@ async def test_list_calls_returns_seeded_call(db_session):
         transcription_adapter=MockTranscriptionAdapter(),
         scoring_model=MockScoringModel(),
         rubric=rubric,
+        distress_analyzer=MockDistressAnalyzer(),
     )
 
     async def override_get_db():
@@ -38,6 +40,7 @@ async def test_list_calls_returns_seeded_call(db_session):
             response = await client.get("/api/calls")
         assert response.status_code == 200
         body = response.json()
-        assert any(c["id"] == "call-api-1" for c in body)
+        seeded = next(c for c in body if c["id"] == "call-api-1")
+        assert "distress_score" in seeded
     finally:
         app.dependency_overrides.clear()

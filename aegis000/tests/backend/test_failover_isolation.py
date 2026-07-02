@@ -1,5 +1,6 @@
 import pytest
 
+from app.distress.mock_analyzer import MockDistressAnalyzer
 from app.ingestion.failover import PipelineFailure
 from app.pipeline.process_call import run_pipeline_for_call
 from app.qa.llm_client import MockScoringModel
@@ -36,6 +37,7 @@ async def test_pipeline_failure_never_raises(db_session, loaded_rubric):
         transcription_adapter=RaisingAdapter(),
         scoring_model=MockScoringModel(),
         rubric=loaded_rubric,
+        distress_analyzer=MockDistressAnalyzer(),
     )
     assert isinstance(result, PipelineFailure)
     assert result.call_id == "call-fail"
@@ -58,6 +60,7 @@ async def test_healthy_call_succeeds_after_a_prior_failure(db_session, loaded_ru
         transcription_adapter=RaisingAdapter(),
         scoring_model=MockScoringModel(),
         rubric=loaded_rubric,
+        distress_analyzer=MockDistressAnalyzer(),
     )
     assert isinstance(failed, PipelineFailure)
 
@@ -69,6 +72,7 @@ async def test_healthy_call_succeeds_after_a_prior_failure(db_session, loaded_ru
         transcription_adapter=MockTranscriptionAdapter(),
         scoring_model=MockScoringModel(),
         rubric=loaded_rubric,
+        distress_analyzer=MockDistressAnalyzer(),
     )
     assert not isinstance(healthy, PipelineFailure)
     assert healthy.id == "call-ok"

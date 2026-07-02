@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import type { CallSummaryOut } from "../types/call";
+import DistressBadge from "./DistressBadge";
 import ScoreBadge from "./ScoreBadge";
 
 export default function CallTable({ calls }: { calls: CallSummaryOut[] }) {
@@ -13,6 +14,7 @@ export default function CallTable({ calls }: { calls: CallSummaryOut[] }) {
           <th className="py-2 pr-4 font-normal">Agent</th>
           <th className="py-2 pr-4 font-normal">Duration</th>
           <th className="py-2 pr-4 font-normal">QA Score</th>
+          <th className="py-2 pr-4 font-normal">Distress</th>
           <th className="py-2 pr-4 font-normal">Flags</th>
           <th className="py-2 pr-4 font-normal">Language</th>
         </tr>
@@ -30,6 +32,9 @@ export default function CallTable({ calls }: { calls: CallSummaryOut[] }) {
             <td className="py-2 pr-4 tabular-nums">{call.duration_seconds}s</td>
             <td className="py-2 pr-4">
               <ScoreBadge score={call.overall_score} />
+            </td>
+            <td className="py-2 pr-4">
+              <DistressBadge score={call.distress_score} />
             </td>
             <td className="py-2 pr-4 tabular-nums">{call.flag_count}</td>
             <td className="py-2 pr-4">

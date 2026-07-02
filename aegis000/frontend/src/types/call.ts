@@ -39,6 +39,21 @@ export interface QAScoreOut {
   criterion_scores: CriterionScoreOut[];
 }
 
+export interface DistressMarkerOut {
+  kind: string;
+  value: number;
+  severity: string;
+  timestamp_ms: number;
+  description: string;
+}
+
+export interface DistressAssessmentOut {
+  overall_distress_score: number;
+  model_name: string;
+  model_version: string;
+  markers: DistressMarkerOut[];
+}
+
 export interface CallSummaryOut {
   id: string;
   agent_id: string;
@@ -48,6 +63,7 @@ export interface CallSummaryOut {
   non_english_flag: boolean;
   overall_score: number | null;
   flag_count: number;
+  distress_score: number | null;
 }
 
 export interface CallDetailOut {
@@ -61,6 +77,7 @@ export interface CallDetailOut {
   qa_score: QAScoreOut | null;
   flags: FlagOut[];
   coaching_moments: CoachingMomentOut[];
+  distress_assessment: DistressAssessmentOut | null;
 }
 
 export interface AuditEntryOut {

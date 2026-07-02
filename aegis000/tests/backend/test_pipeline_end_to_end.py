@@ -2,9 +2,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.distress.mock_analyzer import MockDistressAnalyzer
 from app.models.agent import Agent
 from app.models.audit import AuditLogEntry
 from app.models.call import Call, Flag, Transcript
+from app.models.distress import DistressAssessment
 from app.models.qa import QAScore
 from app.pipeline.process_call import run_pipeline_for_call
 from app.qa.llm_client import MockScoringModel
@@ -27,6 +29,7 @@ async def test_full_pipeline_creates_linked_rows(db_session):
         transcription_adapter=MockTranscriptionAdapter(),
         scoring_model=MockScoringModel(),
         rubric=rubric,
+        distress_analyzer=MockDistressAnalyzer(),
     )
 
     assert isinstance(call, Call)
@@ -49,8 +52,17 @@ async def test_full_pipeline_creates_linked_rows(db_session):
     flags = (await db_session.execute(select(Flag).where(Flag.call_id == call.id))).scalars().all()
     assert any(f.phrase == "knife" for f in flags)
 
+    distress = (
+        await db_session.execute(
+            select(DistressAssessment)
+            .options(selectinload(DistressAssessment.markers))
+            .where(DistressAssessment.call_id == call.id)
+        )
+    ).scalar_one()
+    assert 0.0 <= distress.overall_distress_score <= 1.0
+
     audit_entries = (
         await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.call_id == call.id))
     ).scalars().all()
     actions = {e.action for e in audit_entries}
-    assert actions == {"transcription", "qa_score"}
+    assert actions == {"transcription", "qa_score", "distress_analysis"}

@@ -55,6 +55,25 @@ class QAScoreOut(BaseModel):
     criterion_scores: list[CriterionScoreOut]
 
 
+class DistressMarkerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    kind: str
+    value: float
+    severity: str
+    timestamp_ms: int
+    description: str
+
+
+class DistressAssessmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    overall_distress_score: float
+    model_name: str
+    model_version: str
+    markers: list[DistressMarkerOut]
+
+
 class CallSummaryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,6 +85,7 @@ class CallSummaryOut(BaseModel):
     non_english_flag: bool
     overall_score: float | None
     flag_count: int
+    distress_score: float | None
 
 
 class CallDetailOut(BaseModel):
@@ -81,6 +101,7 @@ class CallDetailOut(BaseModel):
     qa_score: QAScoreOut | None
     flags: list[FlagOut]
     coaching_moments: list[CoachingMomentOut]
+    distress_assessment: DistressAssessmentOut | None
 
 
 class AgentTrendPointOut(BaseModel):

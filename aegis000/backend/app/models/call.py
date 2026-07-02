@@ -27,6 +27,7 @@ class Call(Base, TimestampMixin):
     qa_score: Mapped["QAScore | None"] = relationship(back_populates="call", uselist=False)
     flags: Mapped[list["Flag"]] = relationship(back_populates="call")
     coaching_moments: Mapped[list["CoachingMoment"]] = relationship(back_populates="call")
+    distress_assessment: Mapped["DistressAssessment | None"] = relationship(back_populates="call", uselist=False)
 
 
 class Transcript(Base, TimestampMixin):

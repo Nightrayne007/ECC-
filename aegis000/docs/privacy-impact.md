@@ -13,6 +13,15 @@
 - Speaker-diarised transcript text, timestamps, confidence scores
 - Detected/flagged keywords and coaching moments (may include health-adjacent
   content, e.g. medical conditions mentioned by callers)
+- **Inferred vocal-distress markers** (`backend/app/distress/`) — speech
+  rate, pitch variance, energy spikes, and text-derived tremor proxies
+  computed from the caller's voice/speech. This is an *inference about a
+  person's emotional/physiological state*, not a direct record — treat it
+  as at least as sensitive as the health-adjacent transcript content above,
+  and scope it explicitly in the risk register below (inference accuracy,
+  risk of a wrong high-distress inference affecting triage/coaching, and
+  whether callers should be informed distress is being inferred from their
+  voice).
 - Agent identifiers and performance scores
 - Audit log entries (model version, input/output hashes, snapshots)
 

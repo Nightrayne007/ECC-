@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.db import get_db
 from app.ingestion.failover import PipelineFailure
 from app.models.call import Call, CoachingMoment, Flag, Transcript
+from app.models.distress import DistressAssessment
 from app.models.qa import QAScore
 from app.pipeline.process_call import rescore_call
 from app.qa.llm_client import get_scoring_model
@@ -32,7 +33,9 @@ async def list_calls(
     min_score: float | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> list[CallSummaryOut]:
-    stmt = select(Call).options(selectinload(Call.qa_score), selectinload(Call.flags))
+    stmt = select(Call).options(
+        selectinload(Call.qa_score), selectinload(Call.flags), selectinload(Call.distress_assessment)
+    )
     if agent_id:
         stmt = stmt.where(Call.agent_id == agent_id)
     if language:
@@ -60,6 +63,7 @@ async def list_calls(
                 non_english_flag=call.non_english_flag,
                 overall_score=overall_score,
                 flag_count=flag_count,
+                distress_score=call.distress_assessment.overall_distress_score if call.distress_assessment else None,
             )
         )
     return results
@@ -74,6 +78,7 @@ async def get_call(call_id: str, db: AsyncSession = Depends(get_db)) -> CallDeta
             selectinload(Call.qa_score).selectinload(QAScore.criterion_scores),
             selectinload(Call.flags),
             selectinload(Call.coaching_moments),
+            selectinload(Call.distress_assessment).selectinload(DistressAssessment.markers),
         )
         .where(Call.id == call_id)
     )
@@ -92,6 +97,7 @@ async def get_call(call_id: str, db: AsyncSession = Depends(get_db)) -> CallDeta
         qa_score=call.qa_score,
         flags=call.flags,
         coaching_moments=call.coaching_moments,
+        distress_assessment=call.distress_assessment,
     )
 
 

@@ -13,8 +13,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.log import AuditLogger
+from app.distress.interface import DistressAnalyzer
 from app.ingestion.failover import isolate_from_call_path
 from app.models.call import Call, CoachingMoment, Flag, Transcript, TranscriptSegment
+from app.models.distress import DistressAssessment, DistressMarkerRow
 from app.models.qa import QACriterionScore, QAScore, Rubric as RubricModel
 from app.qa.coaching import extract_coaching_moments
 from app.qa.keyword_triggers import find_triggers
@@ -53,6 +55,7 @@ async def run_pipeline_for_call(
     transcription_adapter: TranscriptionAdapter,
     scoring_model: ScoringModel,
     rubric: Rubric,
+    distress_analyzer: DistressAnalyzer,
     started_at: datetime | None = None,
 ) -> Call:
     started_at = started_at or datetime.now(timezone.utc)
@@ -104,6 +107,44 @@ async def run_pipeline_for_call(
         prompt_version=None,
         input_payload={"audio_ref": audio_ref},
         output_payload={"segment_count": len(transcript_result.segments), "text": transcript_result.to_text()},
+    )
+
+    distress_result = await distress_analyzer.analyze(audio_ref, transcript_result)
+    distress_row = DistressAssessment(
+        call_id=call.id,
+        overall_distress_score=distress_result.overall_distress_score,
+        model_name=distress_result.adapter_name,
+        model_version=distress_result.adapter_version,
+    )
+    session.add(distress_row)
+    await session.flush()
+
+    for marker in distress_result.markers:
+        session.add(
+            DistressMarkerRow(
+                assessment_id=distress_row.id,
+                kind=marker.kind.value,
+                value=marker.value,
+                severity=marker.severity.value,
+                timestamp_ms=marker.timestamp_ms,
+                description=marker.description,
+            )
+        )
+
+    await audit.record(
+        call_id=call.id,
+        action="distress_analysis",
+        model_name=distress_result.adapter_name,
+        model_version=distress_result.adapter_version,
+        prompt_version=None,
+        input_payload={"audio_ref": audio_ref, "transcript_text": transcript_result.to_text()},
+        output_payload={
+            "overall_distress_score": distress_result.overall_distress_score,
+            "markers": [
+                {"kind": m.kind.value, "value": m.value, "severity": m.severity.value, "timestamp_ms": m.timestamp_ms}
+                for m in distress_result.markers
+            ],
+        },
     )
 
     triggers = find_triggers(transcript_result.segments, rubric.keyword_triggers)
