@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { fetchAuditTrail, fetchCallDetail } from "../api/client";
 import AudioPlayerStub from "../components/AudioPlayerStub";
+import CadPrefillPanel from "../components/CadPrefillPanel";
 import DistressBadge from "../components/DistressBadge";
 import FlagPill from "../components/FlagPill";
 import RubricBreakdown from "../components/RubricBreakdown";
@@ -38,6 +39,7 @@ export default function CallDetailPage() {
           segments={call.segments}
           flags={call.flags}
           distressMarkers={call.distress_assessment?.markers ?? []}
+          translatedSegments={call.translated_segments}
         />
 
         {call.flags.length > 0 && (
@@ -91,6 +93,11 @@ export default function CallDetailPage() {
           ) : (
             <p style={{ color: "var(--text-muted)" }}>Not yet analysed.</p>
           )}
+        </div>
+
+        <div>
+          <h3 className="mb-2 text-sm font-medium">CAD Pre-fill</h3>
+          <CadPrefillPanel prefill={call.cad_prefill} />
         </div>
 
         {audit && (

@@ -1,8 +1,9 @@
 """Seed local dev data end-to-end through the real pipeline.
 
-Runs transcription (mock) -> distress analysis (mock) -> QA scoring (mock)
--> audit log -> DB, so the dashboard has real, varied data without any
-external services beyond Postgres, and without any API keys.
+Runs transcription -> distress analysis -> translation -> CAD pre-fill ->
+QA scoring -> audit log -> DB (all mock), so the dashboard has real, varied
+data without any external services beyond Postgres, and without any API
+keys.
 
 Usage: python scripts/seed_dev_data.py
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+from app.cad.mock_extractor import MockCadExtractor
 from app.db import AsyncSessionLocal, init_models
 from app.distress.mock_analyzer import MockDistressAnalyzer
 from app.ingestion.failover import PipelineFailure
@@ -20,6 +22,7 @@ from app.pipeline.process_call import run_pipeline_for_call
 from app.qa.llm_client import MockScoringModel
 from app.qa.rubric import load_rubric
 from app.transcription.mock_adapter import MockTranscriptionAdapter
+from app.translation.mock_translator import MockTranscriptTranslator
 
 RUBRIC_PATH = "../rubrics/example-eso-v1.yaml"
 
@@ -38,6 +41,8 @@ async def main() -> None:
     adapter = MockTranscriptionAdapter()
     model = MockScoringModel()
     distress_analyzer = MockDistressAnalyzer()
+    translator = MockTranscriptTranslator()
+    cad_extractor = MockCadExtractor()
 
     async with AsyncSessionLocal() as session:
         agents: dict[str, Agent] = {}
@@ -59,6 +64,8 @@ async def main() -> None:
                 scoring_model=model,
                 rubric=rubric,
                 distress_analyzer=distress_analyzer,
+                translator=translator,
+                cad_extractor=cad_extractor,
                 started_at=started_at,
             )
             if isinstance(result, PipelineFailure):

@@ -1,9 +1,11 @@
-# Aegis000 — Phase 1 (AI QA + Transcription Wedge)
+# Aegis000 — Phase 1 + Phase 2
 
-See `CLAUDE.md` for the full build brief. This is the Phase 1 scaffold:
-real-time transcription (mock adapter for local dev), a 100%-coverage QA
-scoring engine, a vocal-distress analysis engine, an immutable audit log,
-and a supervisor dashboard shell.
+See `CLAUDE.md` for the full build brief. Phase 1 scaffold: real-time
+transcription (mock adapter for local dev), a 100%-coverage QA scoring
+engine, a vocal-distress analysis engine, an immutable audit log, and a
+supervisor dashboard shell. Phase 2: live translation of non-English caller
+speech and automated CAD field pre-fill (draft only — see
+`docs/failover-design.md`). Phases 3–4 remain interface-only stubs.
 
 ## Local dev quickstart
 
@@ -49,6 +51,11 @@ pytest
   source (raw PCM) into its `audio_loader`; not connected to a real source
   in Phase 1, but the DSP itself is genuine and unit-tested against
   synthetic sine-wave audio.
+
+Translation (`backend/app/translation/`) and CAD field extraction
+(`backend/app/cad/`) both follow `AEGIS_LLM_PROVIDER` too — `mock` (default)
+uses deterministic/heuristic local logic, `claude` routes through the same
+`src/llm` abstraction as QA scoring.
 
 See `backend/.env.example` for all settings.
 

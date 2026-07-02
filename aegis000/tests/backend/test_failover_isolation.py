@@ -1,11 +1,13 @@
 import pytest
 
+from app.cad.mock_extractor import MockCadExtractor
 from app.distress.mock_analyzer import MockDistressAnalyzer
 from app.ingestion.failover import PipelineFailure
 from app.pipeline.process_call import run_pipeline_for_call
 from app.qa.llm_client import MockScoringModel
 from app.qa.rubric import load_rubric
 from app.transcription.interface import TranscriptionAdapter, TranscriptResult
+from app.translation.mock_translator import MockTranscriptTranslator
 
 
 class RaisingAdapter(TranscriptionAdapter):
@@ -38,6 +40,8 @@ async def test_pipeline_failure_never_raises(db_session, loaded_rubric):
         scoring_model=MockScoringModel(),
         rubric=loaded_rubric,
         distress_analyzer=MockDistressAnalyzer(),
+        translator=MockTranscriptTranslator(),
+        cad_extractor=MockCadExtractor(),
     )
     assert isinstance(result, PipelineFailure)
     assert result.call_id == "call-fail"
@@ -61,6 +65,8 @@ async def test_healthy_call_succeeds_after_a_prior_failure(db_session, loaded_ru
         scoring_model=MockScoringModel(),
         rubric=loaded_rubric,
         distress_analyzer=MockDistressAnalyzer(),
+        translator=MockTranscriptTranslator(),
+        cad_extractor=MockCadExtractor(),
     )
     assert isinstance(failed, PipelineFailure)
 
@@ -73,6 +79,8 @@ async def test_healthy_call_succeeds_after_a_prior_failure(db_session, loaded_ru
         scoring_model=MockScoringModel(),
         rubric=loaded_rubric,
         distress_analyzer=MockDistressAnalyzer(),
+        translator=MockTranscriptTranslator(),
+        cad_extractor=MockCadExtractor(),
     )
     assert not isinstance(healthy, PipelineFailure)
     assert healthy.id == "call-ok"

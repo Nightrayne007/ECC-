@@ -19,6 +19,15 @@ manual. This is enforced in code, not just documented here.
 - The FastAPI routes in `backend/app/api/` are exclusively supervisor-facing
   reads plus an async rescore trigger — no route result ever gates or
   affects call answering/routing.
+- **CAD field pre-fill (`backend/app/cad/`) is display-only.** It produces
+  a `CadPrefillResult`/`CadPrefillRow` — a *draft* for a human call-taker
+  to review — and nothing else. There is no code path anywhere in this
+  codebase that submits a `CadPrefillResult` to a real CAD system; no such
+  integration exists. If one is ever built, it must require an explicit
+  human confirmation step before anything reaches CAD — never an automatic
+  write. The dashboard (`frontend/src/components/CadPrefillPanel.tsx`)
+  reflects this in the UI with an explicit "DRAFT — not submitted
+  automatically" banner, not just in the backend.
 
 ## Failure Modes & Degradation Behaviour
 

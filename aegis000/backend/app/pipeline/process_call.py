@@ -7,23 +7,28 @@ propagate to the caller or affect any other call being processed.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.log import AuditLogger
+from app.cad.interface import CadExtractor
 from app.distress.interface import DistressAnalyzer
 from app.ingestion.failover import isolate_from_call_path
+from app.models.cad import CadPrefillRow
 from app.models.call import Call, CoachingMoment, Flag, Transcript, TranscriptSegment
 from app.models.distress import DistressAssessment, DistressMarkerRow
 from app.models.qa import QACriterionScore, QAScore, Rubric as RubricModel
+from app.models.translation import TranslatedSegmentRow
 from app.qa.coaching import extract_coaching_moments
 from app.qa.keyword_triggers import find_triggers
 from app.qa.rubric import Rubric
 from app.qa.scorer import QAEngine
 from app.qa.llm_client import ScoringModel
 from app.transcription.interface import Speaker, TranscriptionAdapter, TranscriptResult, TranscriptSegment as TranscriptSegmentVO
+from app.translation.interface import TranscriptTranslator
 
 
 async def _get_or_create_rubric_snapshot(session: AsyncSession, rubric: Rubric) -> RubricModel:
@@ -56,6 +61,8 @@ async def run_pipeline_for_call(
     scoring_model: ScoringModel,
     rubric: Rubric,
     distress_analyzer: DistressAnalyzer,
+    translator: TranscriptTranslator,
+    cad_extractor: CadExtractor,
     started_at: datetime | None = None,
 ) -> Call:
     started_at = started_at or datetime.now(timezone.utc)
@@ -147,7 +154,42 @@ async def run_pipeline_for_call(
         },
     )
 
-    triggers = find_triggers(transcript_result.segments, rubric.keyword_triggers)
+    translations = await translator.translate_segments(transcript_result.segments)
+    for translated in translations:
+        if translated.segment_index >= len(segment_rows):
+            continue
+        session.add(
+            TranslatedSegmentRow(
+                segment_id=segment_rows[translated.segment_index].id,
+                source_lang=translated.source_lang,
+                target_lang=translated.target_lang,
+                translated_text=translated.translated_text,
+                model_name=translated.model_name,
+                model_version=translated.model_version,
+            )
+        )
+    await session.flush()
+
+    if translations:
+        await audit.record(
+            call_id=call.id,
+            action="translation",
+            model_name=translations[0].model_name,
+            model_version=translations[0].model_version,
+            prompt_version=None,
+            input_payload={"segments": [{"index": t.segment_index, "text": t.original_text} for t in translations]},
+            output_payload={"translations": [{"index": t.segment_index, "text": t.translated_text} for t in translations]},
+        )
+
+    # Keyword triggers run against the English-translated text where
+    # available, so a caller reporting e.g. "not breathing" in another
+    # language still surfaces the same critical flag as in English.
+    translation_overlay = {t.segment_index: t.translated_text for t in translations}
+    effective_segments = [
+        replace(seg, text=translation_overlay[i]) if i in translation_overlay else seg
+        for i, seg in enumerate(transcript_result.segments)
+    ]
+    triggers = find_triggers(effective_segments, rubric.keyword_triggers)
     for trigger in triggers:
         session.add(
             Flag(
@@ -160,6 +202,34 @@ async def run_pipeline_for_call(
                 timestamp_ms=trigger.timestamp_ms,
             )
         )
+
+    cad_result = await cad_extractor.extract(transcript_result, translations=translations, triggers=triggers)
+    session.add(
+        CadPrefillRow(
+            call_id=call.id,
+            incident_type=cad_result.incident_type,
+            location_text=cad_result.location_text,
+            hazards=cad_result.hazards,
+            notes=cad_result.notes,
+            confidence=cad_result.confidence,
+            model_name=cad_result.model_name,
+            model_version=cad_result.model_version,
+        )
+    )
+    await audit.record(
+        call_id=call.id,
+        action="cad_prefill",
+        model_name=cad_result.model_name,
+        model_version=cad_result.model_version,
+        prompt_version=None,
+        input_payload={"transcript_text": transcript_result.to_text()},
+        output_payload={
+            "incident_type": cad_result.incident_type,
+            "location_text": cad_result.location_text,
+            "hazards": cad_result.hazards,
+            "confidence": cad_result.confidence,
+        },
+    )
 
     rubric_snapshot = await _get_or_create_rubric_snapshot(session, rubric)
 

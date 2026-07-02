@@ -1,4 +1,4 @@
-import type { DistressMarkerOut, FlagOut, SegmentOut } from "../types/call";
+import type { DistressMarkerOut, FlagOut, SegmentOut, TranslatedSegmentOut } from "../types/call";
 
 function formatMs(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -11,19 +11,23 @@ export default function TranscriptViewer({
   segments,
   flags,
   distressMarkers = [],
+  translatedSegments = [],
 }: {
   segments: SegmentOut[];
   flags: FlagOut[];
   distressMarkers?: DistressMarkerOut[];
+  translatedSegments?: TranslatedSegmentOut[];
 }) {
   const flaggedStarts = new Set(flags.map((f) => f.timestamp_ms));
   const distressStarts = new Set(distressMarkers.map((m) => m.timestamp_ms));
+  const translationByStart = new Map(translatedSegments.map((t) => [t.start_ms, t]));
 
   return (
     <div className="space-y-2 text-sm">
       {segments.map((segment, i) => {
         const isFlagged = flaggedStarts.has(segment.start_ms);
         const isDistressed = !isFlagged && distressStarts.has(segment.start_ms);
+        const translation = translationByStart.get(segment.start_ms);
         const background = isFlagged
           ? "color-mix(in srgb, var(--status-critical) 10%, transparent)"
           : isDistressed
@@ -38,6 +42,11 @@ export default function TranscriptViewer({
               {segment.speaker === "call_taker" ? "Call-taker" : "Caller"}:
             </span>
             <span>{segment.text}</span>
+            {translation && (
+              <div className="ml-8 mt-0.5 italic" style={{ color: "var(--text-secondary)" }}>
+                {translation.source_lang} → {translation.target_lang}: {translation.translated_text}
+              </div>
+            )}
           </div>
         );
       })}

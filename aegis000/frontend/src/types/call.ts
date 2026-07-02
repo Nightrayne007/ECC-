@@ -66,6 +66,23 @@ export interface CallSummaryOut {
   distress_score: number | null;
 }
 
+export interface TranslatedSegmentOut {
+  start_ms: number;
+  source_lang: string;
+  target_lang: string;
+  translated_text: string;
+}
+
+export interface CadPrefillOut {
+  incident_type: string;
+  location_text: string | null;
+  hazards: string[];
+  notes: string;
+  confidence: number;
+  model_name: string;
+  model_version: string;
+}
+
 export interface CallDetailOut {
   id: string;
   agent_id: string;
@@ -78,6 +95,8 @@ export interface CallDetailOut {
   flags: FlagOut[];
   coaching_moments: CoachingMomentOut[];
   distress_assessment: DistressAssessmentOut | null;
+  translated_segments: TranslatedSegmentOut[];
+  cad_prefill: CadPrefillOut | null;
 }
 
 export interface AuditEntryOut {

@@ -22,6 +22,20 @@
   risk of a wrong high-distress inference affecting triage/coaching, and
   whether callers should be informed distress is being inferred from their
   voice).
+- **Translated caller speech** (`backend/app/translation/`) — non-English
+  caller segments translated to English for the call-taker/dashboard. A
+  mistranslation of an address or symptom is a direct life-safety risk, not
+  just a privacy one — the risk register should treat translation accuracy
+  as a first-class item, and any real (non-mock) deployment should log
+  which specific model/prompt version produced each translation (already
+  done via the audit log) so a bad translation can be traced.
+- **Draft CAD pre-fill fields** (`backend/app/cad/`) — incident type,
+  location, and hazard extraction derived from the transcript (and, where
+  present, its translation). This is a draft only — see
+  `docs/failover-design.md` for the "never auto-submitted" boundary — but
+  it is still an AI-derived summary of caller-reported information and
+  should be scoped in the risk register (extraction accuracy, a wrong or
+  missed location, a call-taker over-trusting the draft).
 - Agent identifiers and performance scores
 - Audit log entries (model version, input/output hashes, snapshots)
 

@@ -74,6 +74,25 @@ class DistressAssessmentOut(BaseModel):
     markers: list[DistressMarkerOut]
 
 
+class TranslatedSegmentOut(BaseModel):
+    start_ms: int
+    source_lang: str
+    target_lang: str
+    translated_text: str
+
+
+class CadPrefillOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    incident_type: str
+    location_text: str | None
+    hazards: list[str]
+    notes: str
+    confidence: float
+    model_name: str
+    model_version: str
+
+
 class CallSummaryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,6 +121,8 @@ class CallDetailOut(BaseModel):
     flags: list[FlagOut]
     coaching_moments: list[CoachingMomentOut]
     distress_assessment: DistressAssessmentOut | None
+    translated_segments: list[TranslatedSegmentOut]
+    cad_prefill: CadPrefillOut | None
 
 
 class AgentTrendPointOut(BaseModel):

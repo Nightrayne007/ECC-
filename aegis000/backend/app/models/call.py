@@ -28,6 +28,7 @@ class Call(Base, TimestampMixin):
     flags: Mapped[list["Flag"]] = relationship(back_populates="call")
     coaching_moments: Mapped[list["CoachingMoment"]] = relationship(back_populates="call")
     distress_assessment: Mapped["DistressAssessment | None"] = relationship(back_populates="call", uselist=False)
+    cad_prefill: Mapped["CadPrefillRow | None"] = relationship(back_populates="call", uselist=False)
 
 
 class Transcript(Base, TimestampMixin):
@@ -55,6 +56,7 @@ class TranscriptSegment(Base):
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
 
     transcript: Mapped["Transcript"] = relationship(back_populates="segments")
+    translation: Mapped["TranslatedSegmentRow | None"] = relationship(back_populates="segment", uselist=False)
 
 
 class Flag(Base, TimestampMixin):

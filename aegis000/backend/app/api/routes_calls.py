@@ -14,13 +14,13 @@ from sqlalchemy.orm import selectinload
 
 from app.db import get_db
 from app.ingestion.failover import PipelineFailure
-from app.models.call import Call, CoachingMoment, Flag, Transcript
+from app.models.call import Call, CoachingMoment, Flag, Transcript, TranscriptSegment
 from app.models.distress import DistressAssessment
 from app.models.qa import QAScore
 from app.pipeline.process_call import rescore_call
 from app.qa.llm_client import get_scoring_model
 from app.config import settings
-from app.schemas.call import CallDetailOut, CallSummaryOut
+from app.schemas.call import CallDetailOut, CallSummaryOut, TranslatedSegmentOut
 
 router = APIRouter(prefix="/api/calls", tags=["calls"])
 
@@ -74,17 +74,30 @@ async def get_call(call_id: str, db: AsyncSession = Depends(get_db)) -> CallDeta
     stmt = (
         select(Call)
         .options(
-            selectinload(Call.transcript).selectinload(Transcript.segments),
+            selectinload(Call.transcript).selectinload(Transcript.segments).selectinload(TranscriptSegment.translation),
             selectinload(Call.qa_score).selectinload(QAScore.criterion_scores),
             selectinload(Call.flags),
             selectinload(Call.coaching_moments),
             selectinload(Call.distress_assessment).selectinload(DistressAssessment.markers),
+            selectinload(Call.cad_prefill),
         )
         .where(Call.id == call_id)
     )
     call = (await db.execute(stmt)).scalar_one_or_none()
     if call is None:
         raise HTTPException(status_code=404, detail="call not found")
+
+    segments = call.transcript.segments if call.transcript else []
+    translated_segments = [
+        TranslatedSegmentOut(
+            start_ms=seg.start_ms,
+            source_lang=seg.translation.source_lang,
+            target_lang=seg.translation.target_lang,
+            translated_text=seg.translation.translated_text,
+        )
+        for seg in segments
+        if seg.translation is not None
+    ]
 
     return CallDetailOut(
         id=call.id,
@@ -93,11 +106,13 @@ async def get_call(call_id: str, db: AsyncSession = Depends(get_db)) -> CallDeta
         duration_seconds=call.duration_seconds,
         language_detected=call.language_detected,
         non_english_flag=call.non_english_flag,
-        segments=call.transcript.segments if call.transcript else [],
+        segments=segments,
         qa_score=call.qa_score,
         flags=call.flags,
         coaching_moments=call.coaching_moments,
         distress_assessment=call.distress_assessment,
+        translated_segments=translated_segments,
+        cad_prefill=call.cad_prefill,
     )
 
 
