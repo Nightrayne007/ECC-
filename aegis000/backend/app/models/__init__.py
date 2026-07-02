@@ -6,6 +6,7 @@ from app.models.call import Call, CoachingMoment, Flag, Transcript, TranscriptSe
 from app.models.distress import DistressAssessment, DistressMarkerRow
 from app.models.media import MediaAsset, MediaSession
 from app.models.qa import QACriterionScore, QAScore, Rubric
+from app.models.radio import RadioChannel, RadioEvent, RadioTransmission
 from app.models.translation import TranslatedSegmentRow
 
 __all__ = [
@@ -25,5 +26,8 @@ __all__ = [
     "MediaSession",
     "QACriterionScore",
     "QAScore",
+    "RadioChannel",
+    "RadioEvent",
+    "RadioTransmission",
     "Rubric",
 ]

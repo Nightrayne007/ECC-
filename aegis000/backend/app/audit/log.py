@@ -20,16 +20,20 @@ class AuditLogger:
     async def record(
         self,
         *,
-        call_id: str,
         action: str,
         model_name: str,
         model_version: str,
         prompt_version: str | None,
         input_payload: dict,
         output_payload: dict,
+        call_id: str | None = None,
+        subject_type: str = "call",
+        subject_ref: str | None = None,
     ) -> AuditLogEntry:
         entry = AuditLogEntry(
+            subject_type=subject_type,
             call_id=call_id,
+            subject_ref=subject_ref,
             action=action,
             model_name=model_name,
             model_version=model_version,

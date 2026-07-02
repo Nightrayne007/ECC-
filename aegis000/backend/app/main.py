@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import routes_agents, routes_audit, routes_calls, routes_media, routes_qa
+from app.api import routes_agents, routes_audit, routes_calls, routes_media, routes_qa, routes_radio
 from app.config import settings
 from app.db import init_models
 
@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_qa.router)
     app.include_router(routes_audit.router)
     app.include_router(routes_media.router)
+    app.include_router(routes_radio.router)
 
     @app.get("/healthz")
     async def healthz() -> dict:

@@ -24,7 +24,10 @@ from app.models.agent import Agent
 from app.pipeline.process_call import run_pipeline_for_call
 from app.qa.llm_client import MockScoringModel
 from app.qa.rubric import load_rubric
+from app.radio.factory import get_radio_feed
+from app.radio.signals import load_signal_catalog
 from app.services.media import MediaService
+from app.services.radio import RadioMonitorService
 from app.transcription.mock_adapter import MockTranscriptionAdapter
 from app.translation.mock_translator import MockTranscriptTranslator
 
@@ -98,6 +101,15 @@ async def main() -> None:
             token=photo_session["invite_token"], data=_DEMO_PNG, content_type="image/png"
         )
         print("seeded caller-media photo session for call-0000")
+
+        # Radio monitor (Phase 4): poll the mock feed and ingest transmissions.
+        radio_service = RadioMonitorService(
+            session,
+            feed=get_radio_feed(settings),
+            catalog=load_signal_catalog(settings.AEGIS_RADIO_SIGNAL_CATALOG),
+        )
+        radio_result = await radio_service.poll_and_ingest()
+        print(f"seeded radio: {radio_result['ingested']} transmissions, {radio_result['events']} events")
 
 
 if __name__ == "__main__":

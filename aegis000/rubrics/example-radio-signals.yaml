@@ -1,0 +1,31 @@
+eso_id: example-eso
+name: "Example Police Radio Signal Catalog"
+version: v1
+# Radio codes/phrases vary by state and service — this catalog is per-ESO
+# configurable, matched deterministically (word-boundary, case-insensitive)
+# against transcribed radio traffic. Illustrative codes only.
+signals:
+  - phrase: "urgent"
+    category: priority
+    severity: high
+    meaning: "Urgent traffic — takes priority over routine"
+  - phrase: "signal one"
+    category: officer_safety
+    severity: critical
+    meaning: "Officer requires urgent assistance"
+  - phrase: "assistance"
+    category: officer_safety
+    severity: high
+    meaning: "Unit requesting assistance"
+  - phrase: "in pursuit"
+    category: pursuit
+    severity: high
+    meaning: "Vehicle/foot pursuit in progress"
+  - phrase: "on scene"
+    category: status
+    severity: low
+    meaning: "Unit has arrived on scene"
+  - phrase: "shots fired"
+    category: firearms
+    severity: critical
+    meaning: "Firearms discharge reported"

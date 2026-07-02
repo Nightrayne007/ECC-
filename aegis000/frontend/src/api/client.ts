@@ -4,6 +4,8 @@ import type {
   CallSummaryOut,
   MediaSessionOut,
   MediaSessionSummaryOut,
+  RadioPollResultOut,
+  RadioTransmissionOut,
 } from "../types/call";
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -42,4 +44,16 @@ export async function requestMediaSession(callId: string, mediaType: string): Pr
     throw new Error(`request media session failed: ${response.status}`);
   }
   return response.json() as Promise<MediaSessionOut>;
+}
+
+export function fetchRadioTransmissions(): Promise<RadioTransmissionOut[]> {
+  return getJson<RadioTransmissionOut[]>("/api/radio/transmissions");
+}
+
+export async function pollRadio(): Promise<RadioPollResultOut> {
+  const response = await fetch(`${API_BASE}/api/radio/poll`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`radio poll failed: ${response.status}`);
+  }
+  return response.json() as Promise<RadioPollResultOut>;
 }

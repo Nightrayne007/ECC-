@@ -37,6 +37,16 @@ manual. This is enforced in code, not just documented here.
   unreachable) has no effect on call-taking. The invite is time-limited and
   single-use (`backend/app/livestream/tokens.py` + session-status check in
   `backend/app/services/media.py`) so a leaked link cannot be replayed.
+- **Radio monitoring (`backend/app/radio/`, Phase 4) is observe-only.** The
+  `RadioFeedAdapter` interface has a `poll()` method and nothing else — there
+  is no transmit path anywhere in the radio code. Aegis listens to radio
+  traffic and extracts priority events; it can never key a channel or affect
+  radio operations. In production the feed is a direct authorized tap on the
+  ESO's NEC ICCS/ControlWorks; the bundled `OpenMHzRadioFeedAdapter` is a
+  dev/demo source only (public scanner archive, and most AU emergency voice
+  is encrypted at source). Radio event extraction is deterministic
+  (`backend/app/radio/signals.py`, word-boundary matching against a per-ESO
+  signal catalog) and every event is written to the immutable audit log.
 
 ## Failure Modes & Degradation Behaviour
 

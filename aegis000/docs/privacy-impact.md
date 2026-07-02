@@ -50,6 +50,14 @@
   retention/deletion of media assets (tie to `AEGIS_RETENTION_DAYS`),
   and access control on the asset-fetch endpoint (RBAC — currently open in
   the scaffold, must be gated before deployment).
+- **Radio traffic transcripts + extracted events** (`backend/app/radio/`)
+  — transcribed radio-channel traffic and the priority events derived from
+  it. Radio traffic can name people, locations, and incident details about
+  members of the public who are not the caller. In production this is sourced
+  from an authorized ICCS/ControlWorks tap under the ESO's own lawful basis;
+  the dev OpenMHz source must not be used with real operational data. Risk
+  register should cover retention of radio transcripts and access control on
+  the radio-monitor views.
 - Agent identifiers and performance scores
 - Audit log entries (model version, input/output hashes, snapshots)
 

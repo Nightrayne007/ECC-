@@ -1,4 +1,4 @@
-# Aegis000 — Phases 1–3
+# Aegis000 — Phases 1–4
 
 See `CLAUDE.md` for the full build brief. Phase 1 scaffold: real-time
 transcription (mock adapter for local dev), a 100%-coverage QA scoring
@@ -8,7 +8,10 @@ speech and automated CAD field pre-fill (draft only — see
 `docs/failover-design.md`). Phase 3: on-demand caller media (photo/livestream)
 built native — a single-use, time-limited invite backbone with a swappable
 media store and transport (photo capture is fully functional; live video
-transport is the SFU swap-in). Phase 4 remains an interface-only stub.
+transport is the SFU swap-in). Phase 4: observe-only radio-channel monitoring
+— a poll-based feed with deterministic priority-event extraction, a mock feed
+by default and a real (dev-only) OpenMHz adapter; production taps the ESO's
+own ICCS/ControlWorks.
 
 ## Local dev quickstart
 

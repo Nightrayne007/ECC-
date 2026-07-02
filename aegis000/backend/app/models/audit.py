@@ -21,7 +21,12 @@ class AuditLogEntry(Base, TimestampMixin):
     __tablename__ = "audit_log_entries"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    call_id: Mapped[str] = mapped_column(String(36), ForeignKey("calls.id"))
+    # Most AI decisions are about a 000 call; some (e.g. radio-channel events)
+    # are not tied to a call. subject_type distinguishes them; call_id is a
+    # nullable FK used for the "call" subject type.
+    subject_type: Mapped[str] = mapped_column(String(32), default="call")
+    call_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("calls.id"), nullable=True)
+    subject_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     action: Mapped[str] = mapped_column(String(32))
     model_name: Mapped[str] = mapped_column(String(128))
     model_version: Mapped[str] = mapped_column(String(64))

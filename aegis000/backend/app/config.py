@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     AEGIS_DISTRESS_ANALYZER: Literal["mock", "signal"] = "mock"
     AEGIS_LIVESTREAM_PROVIDER: Literal["mock", "webrtc"] = "mock"
     AEGIS_MEDIA_STORE: Literal["local", "object"] = "local"
+    AEGIS_RADIO_FEED: Literal["mock", "openmhz"] = "mock"
 
     # Explicit AU data residency — must never fall back to a provider default.
     AEGIS_DATA_REGION: str = "ap-southeast-2"
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
     AEGIS_MEDIA_LOCAL_DIR: str = "/tmp/aegis-media"
     AEGIS_MEDIA_INVITE_BASE_URL: str = "http://localhost:5173"
     AEGIS_LIVESTREAM_SFU_ENDPOINT: str | None = None
+
+    # Radio monitoring (Phase 4). Signal catalog is per-ESO configurable.
+    AEGIS_RADIO_SIGNAL_CATALOG: str = "../rubrics/example-radio-signals.yaml"
+    AEGIS_RADIO_OPENMHZ_SYSTEM: str | None = None
+    AEGIS_RADIO_OPENMHZ_BASE_URL: str = "https://api.openmhz.com"
 
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
 

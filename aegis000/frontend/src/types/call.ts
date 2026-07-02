@@ -126,6 +126,32 @@ export interface MediaSessionSummaryOut {
   assets: MediaAssetOut[];
 }
 
+export interface RadioEventOut {
+  category: string;
+  severity: string;
+  phrase: string;
+  meaning: string;
+}
+
+export interface RadioTransmissionOut {
+  id: string;
+  channel_external_id: string;
+  channel_label: string;
+  service: string;
+  source: string;
+  started_at: string;
+  duration_ms: number;
+  text: string | null;
+  audio_ref: string | null;
+  transcribed: boolean;
+  events: RadioEventOut[];
+}
+
+export interface RadioPollResultOut {
+  ingested: number;
+  events: number;
+}
+
 export interface AuditEntryOut {
   id: string;
   action: string;
