@@ -1,0 +1,178 @@
+"""API response schemas for calls, transcripts, and QA scores."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
+
+class SegmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    speaker: str
+    start_ms: int
+    end_ms: int
+    text: str
+    confidence: float
+
+
+class FlagOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    phrase: str
+    category: str
+    severity: str
+    snippet: str
+    timestamp_ms: int
+
+
+class CoachingMomentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    criterion_key: str
+    timestamp_ms: int
+    snippet: str
+    note: str
+
+
+class CriterionScoreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    criterion_key: str
+    score: float
+    weight: float
+    rationale: str
+
+
+class QAScoreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    overall_score: float
+    model_name: str
+    model_version: str
+    prompt_version: str
+    criterion_scores: list[CriterionScoreOut]
+
+
+class DistressMarkerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    kind: str
+    value: float
+    severity: str
+    timestamp_ms: int
+    description: str
+
+
+class DistressAssessmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    overall_distress_score: float
+    model_name: str
+    model_version: str
+    markers: list[DistressMarkerOut]
+
+
+class TranslatedSegmentOut(BaseModel):
+    start_ms: int
+    source_lang: str
+    target_lang: str
+    translated_text: str
+
+
+class CadPrefillOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    incident_type: str
+    location_text: str | None
+    hazards: list[str]
+    notes: str
+    confidence: float
+    model_name: str
+    model_version: str
+
+
+class MediaSessionRequestIn(BaseModel):
+    media_type: str
+
+
+class MediaSessionOut(BaseModel):
+    session_id: str
+    media_type: str
+    status: str
+    invite_token: str
+    join_url: str
+    transport: str
+    expires_at: datetime
+
+
+class MediaAssetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    session_id: str
+    media_type: str
+    content_type: str
+    byte_size: int
+    sha256: str
+
+
+class MediaSessionSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    media_type: str
+    status: str
+    expires_at: datetime
+    assets: list[MediaAssetOut]
+
+
+class CallSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    agent_id: str
+    started_at: datetime
+    duration_seconds: int
+    language_detected: str
+    non_english_flag: bool
+    overall_score: float | None
+    flag_count: int
+    distress_score: float | None
+
+
+class CallDetailOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    agent_id: str
+    started_at: datetime
+    duration_seconds: int
+    language_detected: str
+    non_english_flag: bool
+    segments: list[SegmentOut]
+    qa_score: QAScoreOut | None
+    flags: list[FlagOut]
+    coaching_moments: list[CoachingMomentOut]
+    distress_assessment: DistressAssessmentOut | None
+    translated_segments: list[TranslatedSegmentOut]
+    cad_prefill: CadPrefillOut | None
+
+
+class AgentTrendPointOut(BaseModel):
+    period: str
+    avg_score: float
+    call_count: int
+
+
+class AuditEntryOut(BaseModel):
+    id: str
+    action: str
+    model_name: str
+    model_version: str
+    prompt_version: str | None
+    input_hash: str
+    output_hash: str
+    created_at: datetime
+    verified: bool

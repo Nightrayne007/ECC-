@@ -1,0 +1,29 @@
+eso_id: example-eso
+name: "Example ESO Call-Taking QA Rubric"
+version: v1
+criteria:
+  - key: greeting
+    label: "Professional Greeting"
+    weight: 0.15
+  - key: location_capture
+    label: "Location Capture"
+    weight: 0.25
+  - key: protocol_adherence
+    label: "Protocol Adherence"
+    weight: 0.25
+  - key: empathy_markers
+    label: "Empathy & Reassurance"
+    weight: 0.15
+  - key: call_control
+    label: "Call Control"
+    weight: 0.20
+keyword_triggers:
+  - phrase: "knife"
+    category: weapon
+    severity: critical
+  - phrase: "not breathing"
+    category: medical
+    severity: critical
+  - phrase: "chest pain"
+    category: medical
+    severity: high

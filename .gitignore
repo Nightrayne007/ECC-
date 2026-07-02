@@ -95,6 +95,13 @@ temp/
 # Rust build artifacts
 ecc2/target/
 
+# Python virtualenvs (aegis000 backend)
+venv/
+.venv/
+
+# Vite cache (aegis000 frontend) — node_modules/, dist/ already covered above
+aegis000/frontend/.vite/
+
 # Bootstrap pipeline outputs
 # Generated lock files in tool subdirectories
 .opencode/package-lock.json
