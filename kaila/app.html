@@ -1,0 +1,1243 @@
+<title>KAILA — Open Ocean Watch · South Pacific</title>
+<style>
+  /* ==========================================================================
+     NA.YADRA — Pacific maritime intelligence console (prototype)
+     Self-contained, offline-capable. No external assets or network required
+     for the core (map, drift model, reports, brief). Live feeds are opt-in.
+     ========================================================================== */
+
+  :root {
+    /* Ocean ground — deep indigo-slate, warmer than a cold agency console */
+    --abyss:      #0a1220;
+    --deep:       #0e1a2d;
+    --panel:      #14223a;
+    --panel-2:    #111d33;
+    --line:       #26375c;
+    --line-soft:  #1b2942;
+
+    /* Neutrals biased slightly warm-cool toward the indigo accent */
+    --ink:        #e0e6f2;
+    --ink-dim:    #9db0cc;
+    --ink-faint:  #647aa0;
+
+    /* Accent — signature periwinkle indigo (interactive / brand) */
+    --cyan:       #5b7cfa;
+    --cyan-deep:  #3a5bd0;
+    --sand:       #e6b566;   /* reef / land / landfall */
+
+    /* Semantic threat states — separate from the accent hue */
+    --ok:         #3ecf8e;   /* normal vessel */
+    --watch:      #f2b53a;   /* loitering / attention */
+    --alert:      #ff5d6c;   /* dark vessel / anomaly */
+    --drift:      #8fb3ff;   /* drift particles / origin */
+    --air:        #b98cff;   /* ADS-B aircraft */
+
+    --shadow:     0 10px 34px rgba(0,0,0,.45);
+    --radius:     10px;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  :root[data-theme="light"] {
+    --abyss:  #e8eef2;
+    --deep:   #eef3f6;
+    --panel:  #ffffff;
+    --panel-2:#f3f7f9;
+    --line:   #cdd9e0;
+    --line-soft:#dde6eb;
+    --ink:    #10222f;
+    --ink-dim:#41606f;
+    --ink-faint:#7893a2;
+    --cyan-deep:#0d7d8f;
+    --shadow: 0 10px 30px rgba(20,50,70,.14);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--abyss);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  h1,h2,h3 { text-wrap: balance; margin: 0; }
+  button { font-family: inherit; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 232px 1fr 344px;
+    grid-template-areas:
+      "topbar topbar topbar"
+      "rail   stage  context";
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    grid-area: topbar;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 18px;
+    height: 56px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border-bottom: 1px solid var(--line);
+    z-index: 20;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .mark {
+    font-family: var(--mono);
+    font-weight: 700;
+    letter-spacing: .14em;
+    font-size: 17px;
+    color: var(--ink);
+  }
+  .brand .mark b { color: var(--cyan); }
+  .brand .tag {
+    font-size: 10.5px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .topbar .spacer { flex: 1; }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: .06em;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink-dim);
+    background: var(--panel-2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(78,203,139,.6); }
+  .dot.live { animation: pulse 2.4s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(78,203,139,.55); }
+    70% { box-shadow: 0 0 0 7px rgba(78,203,139,0); }
+    100% { box-shadow: 0 0 0 0 rgba(78,203,139,0); }
+  }
+  .clock { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); letter-spacing: .04em; }
+  .icon-btn {
+    background: var(--panel-2); color: var(--ink-dim);
+    border: 1px solid var(--line); border-radius: 8px;
+    height: 32px; padding: 0 11px; cursor: pointer; font-size: 12px;
+  }
+  .icon-btn:hover { color: var(--ink); border-color: var(--cyan-deep); }
+
+  /* ---------- Left rail ---------- */
+  .rail {
+    grid-area: rail;
+    background: var(--deep);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .rail .group { padding: 14px 12px 6px; }
+  .rail .group h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .16em;
+    color: var(--ink-faint); margin-bottom: 8px; font-weight: 700;
+  }
+  .mod {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left;
+    background: transparent; border: 1px solid transparent;
+    color: var(--ink-dim); cursor: pointer;
+    padding: 9px 10px; border-radius: 8px; font-size: 13px;
+    margin-bottom: 2px;
+  }
+  .mod:hover { background: var(--panel-2); color: var(--ink); }
+  .mod.active { background: var(--panel); color: var(--ink); border-color: var(--line); }
+  .mod.active .glyph { color: var(--cyan); }
+  .mod .glyph { width: 18px; text-align: center; font-size: 14px; color: var(--ink-faint); }
+  .mod .count {
+    margin-left: auto; font-family: var(--mono); font-size: 10.5px;
+    background: var(--panel-2); color: var(--ink-dim);
+    padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line);
+  }
+  .mod .count.alert { color: var(--alert); border-color: rgba(255,107,95,.4); }
+
+  .layer-toggle {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 10px; font-size: 12.5px; color: var(--ink-dim); cursor: pointer;
+    border-radius: 7px;
+  }
+  .layer-toggle:hover { background: var(--panel-2); }
+  .layer-toggle input { accent-color: var(--cyan); width: 14px; height: 14px; }
+  .layer-toggle .swatch { width: 9px; height: 9px; border-radius: 2px; margin-left: auto; }
+
+  .rail .foot {
+    margin-top: auto; padding: 12px; border-top: 1px solid var(--line-soft);
+    font-size: 10.5px; color: var(--ink-faint); line-height: 1.5;
+  }
+
+  /* ---------- Stage / map ---------- */
+  .stage { grid-area: stage; position: relative; overflow: hidden; background: var(--abyss); }
+  #map { display: block; width: 100%; height: 100%; cursor: grab; }
+  #map.placing { cursor: crosshair; }
+  #map:active { cursor: grabbing; }
+
+  .stage-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .readout {
+    position: absolute; left: 12px; bottom: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-dim);
+    background: rgba(8,19,29,.72); border: 1px solid var(--line);
+    padding: 6px 10px; border-radius: 8px; pointer-events: none;
+    letter-spacing: .03em;
+  }
+  :root[data-theme="light"] .readout { background: rgba(255,255,255,.82); }
+  .legend {
+    position: absolute; right: 12px; bottom: 12px;
+    background: rgba(8,19,29,.72); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 11px; pointer-events: none;
+    display: grid; grid-template-columns: auto auto; gap: 3px 14px;
+  }
+  :root[data-theme="light"] .legend { background: rgba(255,255,255,.82); }
+  .legend .item { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--ink-dim); }
+  .legend .k { width: 9px; height: 9px; border-radius: 50%; }
+  .map-tools {
+    position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px;
+    pointer-events: auto;
+  }
+  .map-tools button {
+    width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+    background: rgba(8,19,29,.8); border: 1px solid var(--line); color: var(--ink-dim);
+    font-size: 16px; line-height: 1;
+  }
+  .map-tools button:hover { color: var(--cyan); border-color: var(--cyan-deep); }
+  :root[data-theme="light"] .map-tools button { background: rgba(255,255,255,.85); }
+
+  .place-banner {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    background: var(--cyan-deep); color: #fff; font-size: 12px; font-weight: 600;
+    padding: 7px 14px; border-radius: 999px; pointer-events: none; box-shadow: var(--shadow);
+  }
+
+  /* ---------- Context panel ---------- */
+  .context {
+    grid-area: context;
+    background: var(--deep);
+    border-left: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .context .head {
+    padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
+  }
+  .context .head .eyebrow {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .17em; color: var(--cyan);
+    font-family: var(--mono); font-weight: 700;
+  }
+  .context .head h2 { font-size: 16px; margin-top: 4px; font-weight: 650; }
+  .context .head p { font-size: 12px; color: var(--ink-dim); margin: 5px 0 0; line-height: 1.5; }
+  .context .body { padding: 14px 16px; overflow-y: auto; flex: 1; }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--ink-faint); margin-bottom: 5px; font-weight: 600;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--ink); border-radius: 7px; padding: 8px 9px; font-size: 13px;
+    font-family: var(--sans);
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(52,198,216,.16);
+  }
+  .field .mono-in { font-family: var(--mono); letter-spacing: .02em; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    width: 100%; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 600; border: 1px solid transparent;
+    background: var(--cyan-deep); color: #eafcff;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: var(--panel-2); color: var(--ink-dim); border-color: var(--line); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--cyan-deep); }
+  .btn.small { width: auto; padding: 6px 11px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; }
+
+  .slider-row { display:flex; align-items:center; gap:10px; }
+  .slider-row input[type=range]{ flex:1; accent-color: var(--cyan); }
+  .slider-row .val { font-family: var(--mono); font-size:12px; color: var(--ink); min-width: 54px; text-align:right; }
+
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom: 14px; }
+  .stat {
+    background: var(--panel); border:1px solid var(--line); border-radius: 8px; padding: 9px 10px;
+  }
+  .stat .n { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--ink); line-height:1; }
+  .stat .l { font-size: 10px; text-transform: uppercase; letter-spacing:.08em; color: var(--ink-faint); margin-top: 5px; }
+  .stat.alert .n { color: var(--alert); }
+  .stat.watch .n { color: var(--watch); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+    padding: 11px 12px; margin-bottom: 9px;
+  }
+  .card.clickable { cursor: pointer; }
+  .card.clickable:hover { border-color: var(--cyan-deep); }
+  .card .title { display:flex; align-items:center; gap:8px; font-size: 13px; font-weight: 650; }
+  .card .title .pill { margin-left:auto; }
+  .card .meta { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); margin-top: 5px; line-height:1.6; }
+  .card .notes { font-size: 12px; color: var(--ink-dim); margin-top: 6px; line-height:1.5; }
+
+  .pill {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid;
+  }
+  .pill.ok    { color: var(--ok);    border-color: rgba(78,203,139,.4);  background: rgba(78,203,139,.08); }
+  .pill.watch { color: var(--watch); border-color: rgba(244,183,64,.4);  background: rgba(244,183,64,.08); }
+  .pill.alert { color: var(--alert); border-color: rgba(255,107,95,.4);  background: rgba(255,107,95,.08); }
+  .pill.info  { color: var(--drift); border-color: rgba(122,162,255,.4); background: rgba(122,162,255,.08); }
+
+  .empty { text-align:center; color: var(--ink-faint); font-size: 12.5px; padding: 30px 10px; line-height:1.6; }
+  .hr { height:1px; background: var(--line-soft); margin: 14px 0; border:0; }
+  .hint { font-size: 11px; color: var(--ink-faint); line-height:1.55; margin-top: 8px; }
+  .hint code, .mono { font-family: var(--mono); }
+  code.block {
+    display:block; white-space: pre-wrap; word-break: break-all;
+    background: var(--panel-2); border:1px solid var(--line); border-radius: 7px;
+    padding: 9px; font-size: 11px; color: var(--ink-dim); font-family: var(--mono); margin-top: 8px;
+  }
+
+  .safety {
+    background: rgba(255,107,95,.09); border: 1px solid rgba(255,107,95,.35);
+    border-radius: 9px; padding: 11px 12px; margin-bottom: 14px;
+  }
+  .safety .h { color: var(--alert); font-weight: 700; font-size: 12px; letter-spacing:.03em; display:flex; align-items:center; gap:7px; }
+  .safety ul { margin: 8px 0 0; padding-left: 18px; font-size: 11.5px; color: var(--ink-dim); line-height:1.6; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel); border:1px solid var(--cyan-deep); color: var(--ink);
+    padding: 10px 16px; border-radius: 9px; font-size: 13px; box-shadow: var(--shadow);
+    opacity: 0; transition: all .25s ease; z-index: 100; pointer-events:none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .disclaimer {
+    font-size: 10px; color: var(--ink-faint); line-height:1.5; margin-top: 4px;
+  }
+
+  @media (max-width: 1080px) {
+    .app { grid-template-columns: 60px 1fr 300px; }
+    .rail .group h3, .mod span.lbl, .layer-toggle .lbl, .rail .foot { display:none; }
+    .mod { justify-content:center; }
+  }
+  @media (prefers-reduced-motion: reduce) { .dot.live { animation: none; } .toast { transition: opacity .2s; } }
+</style>
+
+<div class="app">
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">KAI<b>·</b>LA</span>
+      <span class="tag">Open Ocean Watch · South Pacific</span>
+    </div>
+    <div class="spacer"></div>
+    <span class="status-chip"><span class="dot live" id="feedDot"></span> <span id="feedState">SIM FEED</span></span>
+    <span class="status-chip" id="vesselChip">— vessels</span>
+    <span class="clock" id="clock">--:--:-- UTC</span>
+    <button class="icon-btn" id="themeBtn" title="Toggle light / dark">◐ Theme</button>
+  </header>
+
+  <!-- ================= LEFT RAIL ================= -->
+  <nav class="rail">
+    <div class="group">
+      <h3>Modules</h3>
+      <button class="mod active" data-mod="overview"><span class="glyph">◎</span><span class="lbl">Overview</span></button>
+      <button class="mod" data-mod="ais"><span class="glyph">⛴</span><span class="lbl">Vessel Tracking</span><span class="count" id="aisCount">0</span></button>
+      <button class="mod" data-mod="drift"><span class="glyph">≈</span><span class="lbl">Drift Analysis</span></button>
+      <button class="mod" data-mod="reports"><span class="glyph">◈</span><span class="lbl">Sighting Reports</span><span class="count" id="repCount">0</span></button>
+      <button class="mod" data-mod="adsb"><span class="glyph">✈</span><span class="lbl">Air Correlation</span></button>
+      <button class="mod" data-mod="sat"><span class="glyph">◱</span><span class="lbl">Satellite Tasking</span></button>
+      <button class="mod" data-mod="brief"><span class="glyph">❐</span><span class="lbl">Intel Brief</span></button>
+    </div>
+    <div class="group">
+      <h3>Map Layers</h3>
+      <label class="layer-toggle"><input type="checkbox" data-layer="corridors" checked><span class="lbl">Transit corridors</span><span class="swatch" style="background:var(--alert)"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="vessels" checked><span class="lbl">Vessels</span><span class="swatch" style="background:var(--ok)"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="tracks" checked><span class="lbl">Vessel tracks</span><span class="swatch" style="background:var(--ink-faint)"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="reports" checked><span class="lbl">Sightings</span><span class="swatch" style="background:var(--sand)"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="drift" checked><span class="lbl">Drift ensemble</span><span class="swatch" style="background:var(--drift)"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="adsb"><span class="lbl">Aircraft</span><span class="swatch" style="background:var(--air)"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="currents"><span class="lbl">Current field</span><span class="swatch" style="background:#2b5a6b"></span></label>
+    </div>
+    <div class="foot">
+      Prototype · open-data build.<br>
+      Feeds are simulated until live keys are configured. Not for sole operational reliance.
+    </div>
+  </nav>
+
+  <!-- ================= STAGE ================= -->
+  <main class="stage">
+    <canvas id="map"></canvas>
+    <div class="stage-overlay">
+      <div class="readout" id="readout">lat --.---- · lon ---.----</div>
+      <div class="legend">
+        <div class="item"><span class="k" style="background:var(--ok)"></span>Normal vessel</div>
+        <div class="item"><span class="k" style="background:var(--watch)"></span>Loitering</div>
+        <div class="item"><span class="k" style="background:var(--alert)"></span>Dark / anomaly</div>
+        <div class="item"><span class="k" style="background:var(--alert)"></span>Corridor / hotspot</div>
+        <div class="item"><span class="k" style="background:var(--sand)"></span>Sighting / market</div>
+        <div class="item"><span class="k" style="background:var(--drift)"></span>Drift estimate</div>
+        <div class="item"><span class="k" style="background:var(--cyan)"></span>Transit node</div>
+        <div class="item"><span class="k" style="background:var(--air)"></span>Aircraft</div>
+      </div>
+    </div>
+    <div class="map-tools">
+      <button id="zoomIn" title="Zoom in">＋</button>
+      <button id="zoomOut" title="Zoom out">－</button>
+      <button id="zoomReset" title="Reset view">⊙</button>
+    </div>
+    <div class="place-banner" id="placeBanner" style="display:none">Click the map to set location · Esc to cancel</div>
+  </main>
+
+  <!-- ================= CONTEXT PANEL ================= -->
+  <aside class="context">
+    <div class="head">
+      <div class="eyebrow" id="ctxEyebrow">SITUATION</div>
+      <h2 id="ctxTitle">Overview</h2>
+      <p id="ctxSub">Regional maritime picture and active alerts.</p>
+    </div>
+    <div class="body" id="ctxBody"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   NA.YADRA prototype console
+   Everything below runs client-side. See docs/ for data-source integration.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   0. Small utilities
+   ------------------------------------------------------------------------- */
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const rand  = (a,b) => a + Math.random()*(b-a);
+const fmt   = (n,d=4) => Number(n).toFixed(d);
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
+function latStr(la){ return `${Math.abs(la).toFixed(4)}°${la<0?'S':'N'}`; }
+function lonStr(lo){ let x=lo>180?lo-360:lo; return `${Math.abs(x).toFixed(4)}°${x<0?'W':'E'}`; }
+
+/* ---------------------------------------------------------------------------
+   1. Geographic data (schematic — see docs/DATA-SOURCES.md to swap in
+      Natural Earth / OSM coastline GeoJSON for production accuracy)
+      Longitudes kept continuous across the antimeridian (values may exceed 180).
+   ------------------------------------------------------------------------- */
+// Longitudes are continuous across the antimeridian: values west of 180° are
+// stored as (360 + lon), e.g. Tonga 175.2°W -> 184.8, Tahiti 149.5°W -> 210.5.
+const ISLANDS = [
+  { name:'Viti Levu',  poly:[[177.28,-17.66],[177.45,-17.34],[178.05,-17.28],[178.57,-17.42],[178.66,-17.80],[178.30,-18.22],[177.72,-18.28],[177.34,-18.05]] },
+  { name:'Vanua Levu', poly:[[178.62,-16.62],[179.10,-16.16],[179.75,-16.26],[179.92,-16.62],[179.55,-16.86],[178.98,-16.82],[178.70,-16.74]] },
+  { name:'New Caledonia', poly:[[164.3,-20.2],[165.3,-20.5],[166.9,-21.9],[167.1,-22.4],[166.2,-22.3],[164.9,-21.2],[164.2,-20.6]] },
+  { name:'Efate (Vanuatu)', poly:[[168.15,-17.55],[168.55,-17.55],[168.6,-17.85],[168.2,-17.9]] },
+  { name:'Guadalcanal', poly:[[159.6,-9.35],[160.8,-9.45],[160.9,-9.9],[159.7,-9.8]] },
+  { name:'Tongatapu', poly:[[184.6,-21.05],[185.05,-21.05],[185.1,-21.3],[184.65,-21.32]] },
+  { name:'Tahiti', poly:[[210.3,-17.5],[210.75,-17.55],[210.8,-17.85],[210.35,-17.85]] },
+];
+// Nations, territories, seizure/wash-up hotspots and destination markets.
+// kind: node (transit) · hotspot (recent case) · market (destination) · source (origin, off-map edge)
+const NODES = [
+  // — Melanesia (western meth corridor)
+  { name:'Papua New Guinea', lon:150.6, lat:-9.4, kind:'node' },
+  { name:'Solomon Is.',      lon:160.2, lat:-9.6, kind:'node' },
+  { name:'Vanuatu (Port Vila)', lon:168.3, lat:-17.73, kind:'node' },
+  { name:'New Caledonia',    lon:166.5, lat:-22.27, kind:'node' },
+  // — Central hub (convergence)
+  { name:'Fiji · Suva',      lon:178.44, lat:-18.14, kind:'node' },
+  { name:'Lau Group ⚑',      lon:181.20, lat:-18.20, kind:'hotspot' }, // 27 pkgs, Jun 2026
+  { name:'Kadavu ⚑',         lon:178.30, lat:-19.05, kind:'hotspot' }, // cocaine tested +
+  { name:'Beqa',             lon:178.13, lat:-18.40, kind:'isle' },
+  { name:'Vatulele',         lon:177.63, lat:-18.55, kind:'isle' },
+  { name:'Rotuma',           lon:177.07, lat:-12.50, kind:'isle' },
+  { name:'Tuvalu',           lon:179.20, lat:-8.50,  kind:'node' },
+  // — Polynesia (eastern cocaine corridor)
+  { name:'Wallis & Futuna',  lon:183.70, lat:-13.30, kind:'node' },
+  { name:'Samoa · Apia',     lon:188.20, lat:-13.83, kind:'node' },
+  { name:'Tonga · Nukuʻalofa', lon:184.80, lat:-21.20, kind:'node' },
+  { name:'Niue',             lon:190.10, lat:-19.05, kind:'node' },
+  { name:'Cook Is. · Rarotonga', lon:200.20, lat:-21.20, kind:'node' },
+  { name:'Tahiti (Fr. Poly.)', lon:210.50, lat:-17.60, kind:'node' },
+  { name:'Marquesas ⚑',      lon:220.50, lat:-9.40,  kind:'hotspot' }, // cocaine washed ashore
+  // — Recorded floating transit point / seizure
+  { name:'2023 seizure · 3.2 t ⚑', lon:171.0, lat:-30.2, kind:'seizure' }, // 81 bales, NW of NZ
+  // — Destination markets
+  { name:'AUSTRALIA (market)', lon:153.0, lat:-27.5, kind:'market' },
+  { name:'NEW ZEALAND (market)', lon:174.8, lat:-36.9, kind:'market' },
+];
+// Macro trafficking corridors (schematic, from open-source reporting — see docs/SCOPE.md)
+const CORRIDORS = [
+  { label:'Eastern cocaine route', drug:'Cocaine', from:'South America', col:'--alert',
+    points:[[231,-12],[221,-11],[212,-15],[201,-19],[189,-20],[181,-19]] },
+  { label:'Western meth route', drug:'Methamphetamine', from:'SE Asia via Melanesia', col:'--watch',
+    points:[[150,-6.5],[159,-9.2],[167,-16],[173,-17.5],[178,-18]] },
+  { label:'To market — Australia', drug:'onward', from:'Fiji/Vanuatu', col:'--drift',
+    points:[[178,-18.5],[168,-22],[158,-25.5],[153,-27.2]] },
+  { label:'To market — New Zealand', drug:'onward', from:'transit point', col:'--drift',
+    points:[[180,-19],[176,-26],[171,-30.2],[174.6,-36.5]] },
+];
+
+/* ---------------------------------------------------------------------------
+   2. Map: equirectangular projection with pan/zoom on a canvas
+   ------------------------------------------------------------------------- */
+const canvas = $('#map');
+const ctx = canvas.getContext('2d');
+const view = { cx: 189, cy: -20.5, scale: 12, w:0, h:0, dpr:1 }; // scale = px per degree lon at center
+const COSLAT = Math.cos(-20.5 * Math.PI/180); // fixed reference lat for equirect x-scaling
+
+function resize(){
+  const r = canvas.getBoundingClientRect();
+  view.dpr = window.devicePixelRatio || 1;
+  view.w = r.width; view.h = r.height;
+  canvas.width = r.width*view.dpr; canvas.height = r.height*view.dpr;
+  ctx.setTransform(view.dpr,0,0,view.dpr,0,0);
+  draw();
+}
+function project(lon, lat){
+  const x = view.w/2 + (lon - view.cx) * view.scale * COSLAT;
+  const y = view.h/2 - (lat - view.cy) * view.scale;
+  return [x,y];
+}
+function unproject(x,y){
+  const lon = view.cx + (x - view.w/2) / (view.scale * COSLAT);
+  const lat = view.cy - (y - view.h/2) / view.scale;
+  return [lon,lat];
+}
+
+/* ---------------------------------------------------------------------------
+   3. Parametric surface-current field (climatological approximation).
+      Fiji sits in the westward South Equatorial Current. This is NOT a live
+      ocean model — see docs/DRIFT-MODEL.md for wiring HYCOM / Copernicus.
+      Returns [u,v] in m/s (east, north).
+   ------------------------------------------------------------------------- */
+function currentAt(lon, lat){
+  // Base westward SEC, strengthening slightly toward the equator
+  let u = -0.16 - 0.05*Math.cos((lat+18)*Math.PI/10);
+  let v =  0.02*Math.sin((lon-179)*Math.PI/6);
+  // Mesoscale eddy structure so trajectories aren't straight lines
+  u += 0.06*Math.sin(lat*0.9 + lon*0.6);
+  v += 0.06*Math.cos(lon*0.8 - lat*0.7);
+  // Topographic steering near the main group (crude): deflect around Viti Levu
+  const dx = lon-178.0, dy = lat+17.8, r2 = dx*dx+dy*dy;
+  if(r2 < 1.2){ u += -dy*0.10; v += dx*0.10; }
+  return [u,v];
+}
+// SE trade-wind leeway (windage): wind blows from ~SE toward NW.
+const WIND = { toX:-0.7, toY:0.7, speed:7.5 }; // unit-ish direction, m/s magnitude
+const LEEWAY = 0.03; // 3% of wind speed added to object drift
+
+/* ---------------------------------------------------------------------------
+   4. State
+   ------------------------------------------------------------------------- */
+const state = {
+  mod: 'overview',
+  layers: { corridors:true, vessels:true, tracks:true, reports:true, drift:true, adsb:false, currents:false },
+  vessels: [],
+  aircraft: [],
+  reports: load('nayadra.reports', []),
+  drift: null,            // { mode, particles:[[lon,lat]...], trails:[[..]], origin:[lon,lat], days }
+  placing: null,          // callback awaiting a map click
+  selected: null,         // selected vessel id
+  hover: null,
+};
+
+function load(k, dflt){ try{ return JSON.parse(localStorage.getItem(k)) ?? dflt; }catch(e){ return dflt; } }
+function save(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+/* ---------------------------------------------------------------------------
+   5. Simulated AIS fleet (clearly labelled). Replace with live AIS feed —
+      see connectLiveAIS() and docs/DATA-SOURCES.md.
+   ------------------------------------------------------------------------- */
+const VTYPES = ['Fishing','Cargo','Tanker','Patrol','Pleasure','Unknown'];
+function seedFleet(){
+  const names = ['TAGIMOUCIA','SILVER REEF','WAILOALOA','PACIFIC DAWN','NAI QALIQALI','SEA MITU',
+    'VUNILAGI','CORAL STAR','MANA VOYAGER','RATU MARA','DELANA','BULA HAI','TASI NIU','OCEANIC 7'];
+  const fleet = [];
+  for(let i=0;i<names.length;i++){
+    const lon = rand(160,214), lat = rand(-30,-9);
+    const type = VTYPES[Math.floor(rand(0,VTYPES.length))];
+    fleet.push({
+      id:'v'+i, mmsi: 570000000 + Math.floor(rand(1000,9999))*100 + i,
+      name: names[i], type,
+      lon, lat, hdg: rand(0,360),
+      spd: type==='Patrol'? rand(8,16) : type==='Fishing'? rand(0,7) : rand(6,14),
+      track: [[lon,lat]],
+      status:'ok', lastSeen: 0, flags: [],
+    });
+  }
+  // Scripted intelligence scenarios:
+  fleet[3].scenario = 'dark';      // will stop transmitting (dark vessel)
+  fleet[6].scenario = 'loiter';    // low-speed circling near reef (behavioural)
+  fleet[6].spd = 1.2;
+  fleet[9].scenario = 'jump';      // impossible position jump (AIS spoof)
+  return fleet;
+}
+state.vessels = seedFleet();
+
+let tick = 0;
+function stepFleet(){
+  tick++;
+  for(const v of state.vessels){
+    if(v.status==='dark'){ v.lastSeen += 1; continue; }
+    // scenario triggers
+    if(v.scenario==='dark' && tick===9){ v.status='dark'; v.flags=['AIS dropout']; addAlert(v,'Dark vessel — AIS transmission ceased'); pushBrief(); continue; }
+    if(v.scenario==='jump' && tick===14){
+      v.lon += 3.2; v.lat -= 1.1; v.track.push([v.lon,v.lat]);
+      v.status='alert'; v.flags=['Impossible jump (>300 km / step)'];
+      addAlert(v,'GPS anomaly — position jump inconsistent with speed'); pushBrief(); continue;
+    }
+    // normal movement
+    const rad = v.hdg*Math.PI/180;
+    const dps = (v.spd*0.514) / (111320) ; // m/s -> deg/s (approx, lat)
+    const dt = 60*30; // 30-min step
+    v.lat += Math.cos(rad)*dps*dt;
+    v.lon += Math.sin(rad)*dps*dt / COSLAT;
+    v.hdg += rand(-8,8);
+    if(v.scenario==='loiter'){ v.hdg += 22; } // circling
+    // keep in region
+    if(v.lon<154||v.lon>226||v.lat<-36||v.lat>-5){ v.hdg = (v.hdg+180)%360; }
+    v.track.push([v.lon,v.lat]); if(v.track.length>40) v.track.shift();
+    // behavioural: loiter near a reef/report
+    if(v.scenario==='loiter' && v.status==='ok' && tick>4){ v.status='watch'; v.flags=['Loitering < 2 kn']; }
+  }
+  if(state.mod==='ais' || state.mod==='overview') renderContext();
+  updateChips();
+  draw();
+}
+const alerts = [];
+function addAlert(v, text){
+  alerts.unshift({ t: Date.now(), vessel: v.name, mmsi: v.mmsi, text, kind: v.status });
+  if(alerts.length>12) alerts.pop();
+}
+
+/* ---------------------------------------------------------------------------
+   6. Sample aircraft (ADS-B correlation demo)
+   ------------------------------------------------------------------------- */
+state.aircraft = [
+  { id:'a1', call:'FJ271', lon:178.4, lat:-17.9, hdg:250, alt:34000, track:[[181,-16.5],[178.4,-17.9]] },
+  { id:'a2', call:'LIGHT-UNK', lon:180.6, lat:-18.9, hdg:300, alt:2400, track:[[182.2,-19.6],[180.6,-18.9]], flag:true },
+];
+
+/* ---------------------------------------------------------------------------
+   7. Drift model — Lagrangian particle ensemble
+      mode 'reverse' : integrate backward from a wash-up point -> origin cloud
+      mode 'forward' : integrate forward from a drop point -> landfall cloud
+   ------------------------------------------------------------------------- */
+function runDrift(origin, mode, days, count){
+  const dtSec = 3*3600;                 // 3-hour integration step
+  const steps = Math.round(days*24*3600 / dtSec);
+  const sign  = (mode==='reverse') ? -1 : 1;
+  const particles = [], trails = [];
+  for(let p=0;p<count;p++){
+    let lon = origin[0] + rand(-0.03,0.03);
+    let lat = origin[1] + rand(-0.03,0.03);
+    const trail = [[lon,lat]];
+    for(let s=0;s<steps;s++){
+      let [u,v] = currentAt(lon,lat);
+      // add windage (leeway) — same physical direction regardless of integration sign
+      u += WIND.toX * WIND.speed * LEEWAY;
+      v += WIND.toY * WIND.speed * LEEWAY;
+      // turbulent diffusion
+      u += rand(-0.08,0.08); v += rand(-0.08,0.08);
+      lon += sign * u*dtSec / (111320*COSLAT);
+      lat += sign * v*dtSec / 111320;
+      if(s%2===0) trail.push([lon,lat]);
+    }
+    particles.push([lon,lat]);
+    trails.push(trail);
+  }
+  state.drift = { mode, origin, days, count, particles, trails };
+  draw();
+}
+
+/* ---------------------------------------------------------------------------
+   8. Rendering
+   ------------------------------------------------------------------------- */
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw(){
+  ctx.clearRect(0,0,view.w,view.h);
+  // ocean backdrop subtle depth gradient
+  const g = ctx.createRadialGradient(view.w/2,view.h*0.4,50, view.w/2,view.h/2, Math.max(view.w,view.h));
+  g.addColorStop(0, css('--deep')); g.addColorStop(1, css('--abyss'));
+  ctx.fillStyle = g; ctx.fillRect(0,0,view.w,view.h);
+
+  drawGraticule();
+  if(state.layers.currents) drawCurrents();
+  if(state.layers.corridors) drawCorridors();
+  drawLand();
+  if(state.layers.drift && state.drift) drawDrift();
+  if(state.layers.tracks) drawTracks();
+  if(state.layers.reports) drawReports();
+  if(state.layers.vessels) drawVessels();
+  if(state.layers.adsb) drawAircraft();
+}
+
+function drawGraticule(){
+  ctx.strokeStyle = css('--line-soft'); ctx.lineWidth = 1; ctx.font='10px '+css('--mono'); ctx.fillStyle=css('--ink-faint');
+  const stepLon = view.scale>26?2:5, stepLat = view.scale>26?2:5;
+  for(let lon=150;lon<=232;lon+=stepLon){
+    const [x] = project(lon,0); if(x<0||x>view.w) continue;
+    ctx.globalAlpha=.45; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,view.h); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.fillText(lonStr(lon), x+3, view.h-4);
+  }
+  for(let lat=-40;lat<=0;lat+=stepLat){
+    const [,y] = project(0,lat); if(y<0||y>view.h) continue;
+    ctx.globalAlpha=.45; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(view.w,y); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.fillText(latStr(lat), 4, y-3);
+  }
+}
+function drawCorridors(){
+  ctx.lineWidth=2; ctx.lineJoin='round';
+  for(const c of CORRIDORS){
+    const col = css(c.col);
+    // smooth-ish polyline
+    ctx.beginPath();
+    c.points.forEach((p,i)=>{ const [x,y]=project(p[0],p[1]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.strokeStyle=col; ctx.globalAlpha=.55; ctx.setLineDash([9,6]); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    // direction arrowheads along the route
+    for(let i=1;i<c.points.length;i++){
+      const [x0,y0]=project(c.points[i-1][0],c.points[i-1][1]);
+      const [x1,y1]=project(c.points[i][0],c.points[i][1]);
+      const mx=(x0+x1)/2, my=(y0+y1)/2, a=Math.atan2(y1-y0,x1-x0);
+      ctx.save(); ctx.translate(mx,my); ctx.rotate(a);
+      ctx.fillStyle=col; ctx.globalAlpha=.8;
+      ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,4); ctx.lineTo(-4,-4); ctx.closePath(); ctx.fill();
+      ctx.restore(); ctx.globalAlpha=1;
+    }
+    // label only the drug source-routes (onward routes are implied by market nodes)
+    if(c.drug!=='onward'){
+      const anchor = c.points[1] || c.points[0];
+      const [lx,ly]=project(anchor[0],anchor[1]);
+      ctx.fillStyle=col; ctx.font='700 10px '+css('--mono'); ctx.globalAlpha=.95;
+      ctx.fillText('◆ '+c.drug+' →', lx+8, ly-6);
+      ctx.globalAlpha=1;
+    }
+  }
+}
+function drawLand(){
+  const landFill = css('--panel'); const landEdge = css('--sand');
+  for(const isl of ISLANDS){
+    ctx.beginPath();
+    isl.poly.forEach((p,i)=>{ const [x,y]=project(p[0],p[1]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.closePath();
+    ctx.fillStyle=landFill; ctx.fill();
+    ctx.strokeStyle=landEdge; ctx.lineWidth=1; ctx.globalAlpha=.55; ctx.stroke(); ctx.globalAlpha=1;
+    const c = isl.poly.reduce((a,p)=>[a[0]+p[0],a[1]+p[1]],[0,0]).map(x=>x/isl.poly.length);
+    const [cx,cy]=project(c[0],c[1]);
+    ctx.fillStyle=css('--ink-dim'); ctx.font='10px '+css('--sans'); ctx.textAlign='center';
+    ctx.fillText(isl.name, cx, cy); ctx.textAlign='left';
+  }
+  for(const s of NODES){
+    const [x,y]=project(s.lon,s.lat);
+    if(x<-30||x>view.w+30||y<-30||y>view.h+30) continue;
+    let col=css('--ink-dim'), r=3, label=css('--ink-faint'), font='9px '+css('--sans');
+    if(s.kind==='hotspot'||s.kind==='seizure'){ col=css('--alert'); r=4; label=css('--alert'); font='700 9px '+css('--sans'); }
+    else if(s.kind==='node'){ col=css('--cyan'); r=3.2; label=css('--ink-dim'); }
+    else if(s.kind==='market'){ col=css('--sand'); r=4; label=css('--sand'); font='700 10px '+css('--sans'); }
+    else { col=css('--sand'); r=2.6; }
+    if(s.kind==='hotspot'||s.kind==='seizure'){
+      ctx.beginPath(); ctx.moveTo(x,y-r-1); ctx.lineTo(x+r+1,y); ctx.lineTo(x,y+r+1); ctx.lineTo(x-r-1,y); ctx.closePath();
+      ctx.fillStyle=col; ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fillStyle=col; ctx.globalAlpha=.92; ctx.fill(); ctx.globalAlpha=1;
+      if(s.kind==='node'){ ctx.beginPath(); ctx.arc(x,y,r+2.5,0,7); ctx.strokeStyle=col; ctx.globalAlpha=.4; ctx.lineWidth=1; ctx.stroke(); ctx.globalAlpha=1; }
+    }
+    // suppress minor islet labels when zoomed out to reduce clutter
+    if(!(s.kind==='isle' && view.scale<22)){ ctx.fillStyle=label; ctx.font=font; ctx.fillText(s.name, x+6, y+3); }
+  }
+}
+function drawCurrents(){
+  ctx.strokeStyle='#2b5a6b'; ctx.lineWidth=1; ctx.globalAlpha=.55;
+  for(let lon=152;lon<=230;lon+=2.4){
+    for(let lat=-38;lat<=-4;lat+=2.4){
+      const [u,v]=currentAt(lon,lat); const [x,y]=project(lon,lat);
+      const sc=26; const ex=x+u*sc, ey=y-v*sc;
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(ex,ey); ctx.stroke();
+      ctx.beginPath(); ctx.arc(ex,ey,1.3,0,7); ctx.fillStyle='#3d7285'; ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+function drawTracks(){
+  ctx.lineWidth=1;
+  for(const v of state.vessels){
+    if(v.track.length<2) continue;
+    ctx.strokeStyle = css('--ink-faint'); ctx.globalAlpha=.4;
+    ctx.beginPath(); v.track.forEach((p,i)=>{ const [x,y]=project(p[0],p[1]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+}
+function drawVessels(){
+  for(const v of state.vessels){
+    const [x,y]=project(v.lon,v.lat);
+    if(x<-20||x>view.w+20||y<-20||y>view.h+20) continue;
+    const col = v.status==='dark'||v.status==='alert' ? css('--alert')
+              : v.status==='watch' ? css('--watch') : css('--ok');
+    if(v.status==='dark'){
+      // last-known ghost marker
+      ctx.beginPath(); ctx.arc(x,y,6,0,7); ctx.strokeStyle=col; ctx.setLineDash([2,2]); ctx.lineWidth=1.4; ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=col; ctx.font='9px '+css('--mono'); ctx.fillText('LKP', x+8, y-6);
+    } else {
+      // heading triangle
+      ctx.save(); ctx.translate(x,y); ctx.rotate(v.hdg*Math.PI/180);
+      ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(4,5); ctx.lineTo(-4,5); ctx.closePath();
+      ctx.fillStyle=col; ctx.fill(); ctx.restore();
+    }
+    if(state.selected===v.id){
+      ctx.beginPath(); ctx.arc(x,y,11,0,7); ctx.strokeStyle=css('--cyan'); ctx.lineWidth=1.6; ctx.stroke();
+    }
+    if(v.status!=='ok' || state.selected===v.id){
+      ctx.fillStyle=css('--ink-dim'); ctx.font='9px '+css('--mono'); ctx.fillText(v.name, x+9, y+3);
+    }
+  }
+}
+function drawAircraft(){
+  for(const a of state.aircraft){
+    const [x,y]=project(a.lon,a.lat);
+    ctx.save(); ctx.translate(x,y); ctx.rotate(a.hdg*Math.PI/180);
+    ctx.fillStyle = a.flag? css('--alert') : css('--air');
+    ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(6,4); ctx.lineTo(0,1); ctx.lineTo(-6,4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle=css('--air'); ctx.font='9px '+css('--mono'); ctx.fillText(a.call+' · FL'+Math.round(a.alt/100), x+8, y-4);
+  }
+}
+function drawReports(){
+  for(const r of state.reports){
+    const [x,y]=project(r.lon<0?r.lon+360:r.lon, r.lat);
+    ctx.beginPath(); ctx.moveTo(x,y-8); ctx.lineTo(x+6,y); ctx.lineTo(x,y+8); ctx.lineTo(x-6,y); ctx.closePath();
+    ctx.fillStyle=css('--sand'); ctx.fill(); ctx.strokeStyle=css('--abyss'); ctx.lineWidth=1.2; ctx.stroke();
+    ctx.fillStyle=css('--sand'); ctx.font='9px '+css('--mono'); ctx.fillText('◈ '+(r.island||'sighting'), x+9, y+3);
+  }
+}
+function drawDrift(){
+  const d = state.drift;
+  // trails
+  ctx.strokeStyle=css('--drift'); ctx.lineWidth=1; ctx.globalAlpha=.16;
+  for(const tr of d.trails){ ctx.beginPath(); tr.forEach((p,i)=>{ const [x,y]=project(p[0],p[1]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); }
+  ctx.globalAlpha=1;
+  // endpoint cloud
+  for(const p of d.particles){ const [x,y]=project(p[0],p[1]); ctx.beginPath(); ctx.arc(x,y,2.4,0,7); ctx.fillStyle=css('--drift'); ctx.globalAlpha=.5; ctx.fill(); }
+  ctx.globalAlpha=1;
+  // centroid + origin
+  const cen = d.particles.reduce((a,p)=>[a[0]+p[0],a[1]+p[1]],[0,0]).map(x=>x/d.particles.length);
+  const [ox,oy]=project(d.origin[0],d.origin[1]);
+  ctx.beginPath(); ctx.arc(ox,oy,7,0,7); ctx.strokeStyle=css('--sand'); ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle=css('--sand'); ctx.font='9px '+css('--mono');
+  ctx.fillText(d.mode==='reverse'?'WASH-UP':'DROP', ox+10, oy-6);
+  const [gx,gy]=project(cen[0],cen[1]);
+  ctx.beginPath(); ctx.arc(gx,gy,9,0,7); ctx.strokeStyle=css('--drift'); ctx.lineWidth=2; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=css('--drift'); ctx.fillText(d.mode==='reverse'?'EST. ORIGIN':'EST. LANDFALL', gx+11, gy+3);
+  d._centroid = cen;
+}
+
+/* ---------------------------------------------------------------------------
+   9. Interaction: pan / zoom / hover / click
+   ------------------------------------------------------------------------- */
+let dragging=false, dragStart=null, moved=false;
+canvas.addEventListener('mousedown', e=>{ dragging=true; moved=false; dragStart=[e.offsetX,e.offsetY,view.cx,view.cy]; });
+window.addEventListener('mouseup', ()=>{ dragging=false; });
+canvas.addEventListener('mousemove', e=>{
+  const [lon,lat]=unproject(e.offsetX,e.offsetY);
+  $('#readout').textContent = `lat ${latStr(lat)} · lon ${lonStr(lon)}` + (state.layers.currents? ` · cur ${currentAt(lon,lat).map(n=>n.toFixed(2)).join(',')} m/s`:'');
+  if(dragging){
+    moved=true;
+    view.cx = dragStart[2] - (e.offsetX-dragStart[0])/(view.scale*COSLAT);
+    view.cy = dragStart[3] + (e.offsetY-dragStart[1])/view.scale;
+    draw();
+  }
+});
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); const f=e.deltaY<0?1.12:0.89; view.scale=clamp(view.scale*f,14,360); draw(); }, {passive:false});
+canvas.addEventListener('click', e=>{
+  if(moved) return;
+  const [lon,lat]=unproject(e.offsetX,e.offsetY);
+  if(state.placing){ const cb=state.placing; state.placing=null; canvas.classList.remove('placing'); $('#placeBanner').style.display='none'; cb(lon,lat); return; }
+  // select nearest vessel within 14px
+  let best=null,bd=14;
+  for(const v of state.vessels){ const [x,y]=project(v.lon,v.lat); const dd=Math.hypot(x-e.offsetX,y-e.offsetY); if(dd<bd){bd=dd;best=v;} }
+  if(best){ state.selected=best.id; setMod('ais'); renderContext(); draw(); }
+});
+window.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.placing){ state.placing=null; canvas.classList.remove('placing'); $('#placeBanner').style.display='none'; } });
+$('#zoomIn').onclick =()=>{ view.scale=clamp(view.scale*1.25,14,360); draw(); };
+$('#zoomOut').onclick=()=>{ view.scale=clamp(view.scale*0.8,14,360); draw(); };
+$('#zoomReset').onclick=()=>{ view.cx=189; view.cy=-20.5; view.scale=12; draw(); };
+
+function pickOnMap(cb){ state.placing=cb; canvas.classList.add('placing'); $('#placeBanner').style.display='block'; }
+
+/* ---------------------------------------------------------------------------
+   10. Context panel rendering per module
+   ------------------------------------------------------------------------- */
+const CTX = {
+  overview: renderOverview,
+  ais: renderAIS,
+  drift: renderDrift,
+  reports: renderReports,
+  adsb: renderADSB,
+  sat: renderSat,
+  brief: renderBrief,
+};
+function setMod(m){
+  state.mod=m;
+  $$('.mod').forEach(b=>b.classList.toggle('active', b.dataset.mod===m));
+  renderContext();
+}
+function renderContext(){ (CTX[state.mod]||renderOverview)(); }
+
+function setHead(eyebrow,title,sub){ $('#ctxEyebrow').textContent=eyebrow; $('#ctxTitle').textContent=title; $('#ctxSub').textContent=sub; }
+
+function renderOverview(){
+  setHead('SITUATION','South Pacific Overview','Live picture across the Melanesia–Polynesia trafficking belt — from the eastern cocaine route to Melanesian meth flows.');
+  const dark = state.vessels.filter(v=>v.status==='dark').length;
+  const watch= state.vessels.filter(v=>v.status==='watch').length;
+  const anom = state.vessels.filter(v=>v.status==='alert').length;
+  let h = `
+    <div class="safety">
+      <div class="h">⚠ IF YOU SEE A PACKAGE OR BUOY</div>
+      <ul>
+        <li><b>Do not touch or open it.</b></li>
+        <li>Note the location — landmarks, or GPS if you have it.</li>
+        <li>Photograph from a safe distance.</li>
+        <li>Report it — file a sighting in the Reports module.</li>
+      </ul>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="n">${state.vessels.length}</div><div class="l">Tracked vessels</div></div>
+      <div class="stat"><div class="n">${state.reports.length}</div><div class="l">Open sightings</div></div>
+      <div class="stat ${dark||anom?'alert':''}"><div class="n">${dark+anom}</div><div class="l">Dark / anomaly</div></div>
+      <div class="stat ${watch?'watch':''}"><div class="n">${watch}</div><div class="l">Loitering</div></div>
+    </div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-faint);margin:2px 0 8px;font-weight:700">Live alert stream</div>`;
+  if(!alerts.length) h += `<div class="empty">No active alerts. Feed nominal.</div>`;
+  else for(const a of alerts.slice(0,7)){
+    h += `<div class="card"><div class="title"><span class="pill ${a.kind==='watch'?'watch':'alert'}">${a.kind}</span> ${a.vessel}<span class="pill info title-pill" style="margin-left:auto">${new Date(a.t).toISOString().slice(11,19)}</span></div>
+      <div class="meta">MMSI ${a.mmsi}</div><div class="notes">${a.text}</div></div>`;
+  }
+  h += `<p class="disclaimer">Prototype using simulated feeds. See docs/ to connect live AIS, ocean-current, ADS-B and satellite sources.</p>`;
+  $('#ctxBody').innerHTML=h;
+}
+
+function renderAIS(){
+  const sel = state.vessels.find(v=>v.id===state.selected);
+  if(sel){
+    setHead('CONTACT', sel.name, `${sel.type} vessel · detail & behavioural flags`);
+    const col = sel.status==='ok'?'ok':sel.status==='watch'?'watch':'alert';
+    $('#ctxBody').innerHTML = `
+      <div class="card">
+        <div class="title"><span class="pill ${col}">${sel.status}</span> ${sel.name}</div>
+        <div class="meta">
+          MMSI ......... ${sel.mmsi}<br>
+          Type ......... ${sel.type}<br>
+          Position ..... ${latStr(sel.lat)}  ${lonStr(sel.lon)}<br>
+          Course ....... ${Math.round((sel.hdg%360+360)%360)}°<br>
+          Speed ........ ${sel.spd.toFixed(1)} kn<br>
+          ${sel.status==='dark'?`Last seen .... ${sel.lastSeen} steps ago`:''}
+        </div>
+        ${sel.flags.length?`<div class="notes">⚑ ${sel.flags.join(' · ')}</div>`:''}
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost small" id="centerV">Center map</button>
+        <button class="btn ghost small" id="reverseFromV">Reverse-drift from here</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px"><button class="btn ghost small" id="clearSel">Clear selection</button></div>
+      <p class="hint">Behavioural analysis flags dark vessels (AIS dropout), loitering, and impossible position jumps indicative of AIS spoofing.</p>`;
+    $('#centerV').onclick=()=>{ view.cx=sel.lon; view.cy=sel.lat; draw(); };
+    $('#reverseFromV').onclick=()=>{ setMod('drift'); setTimeout(()=>{ startDriftFrom(sel.lon,sel.lat,'reverse'); },30); };
+    $('#clearSel').onclick=()=>{ state.selected=null; renderAIS(); draw(); };
+    return;
+  }
+  setHead('VESSELS','Vessel Tracking',`${state.vessels.length} contacts · ${state.vessels.filter(v=>v.status!=='ok').length} flagged`);
+  let h = `<div class="hint" style="margin-bottom:10px">Click any vessel on the map for detail. Flagged contacts listed first.</div>`;
+  const sorted=[...state.vessels].sort((a,b)=> (a.status==='ok') - (b.status==='ok'));
+  for(const v of sorted){
+    const col = v.status==='ok'?'ok':v.status==='watch'?'watch':'alert';
+    h += `<div class="card clickable" data-v="${v.id}">
+      <div class="title"><span class="pill ${col}">${v.status}</span> ${v.name}</div>
+      <div class="meta">${v.type} · MMSI ${v.mmsi} · ${v.spd.toFixed(1)} kn · ${latStr(v.lat)} ${lonStr(v.lon)}${v.flags.length?'<br>⚑ '+v.flags.join(' · '):''}</div>
+    </div>`;
+  }
+  $('#ctxBody').innerHTML=h;
+  $$('.card[data-v]').forEach(c=>c.onclick=()=>{ state.selected=c.dataset.v; renderAIS(); draw(); });
+}
+
+function startDriftFrom(lon,lat,mode){
+  $('#dOriginLat') && ($('#dOriginLat').value=lat.toFixed(4));
+  $('#dOriginLon') && ($('#dOriginLon').value=(lon>180?lon-360:lon).toFixed(4));
+  $('#dMode') && ($('#dMode').value=mode);
+  runAndReport();
+}
+function renderDrift(){
+  setHead('DRIFT','Drift & Reverse-Drift','Estimate where a sea drop came from, or where a floating package will wash ashore.');
+  $('#ctxBody').innerHTML = `
+    <div class="field"><label>Mode</label>
+      <select id="dMode" class="mono-in">
+        <option value="reverse">Reverse-drift → estimate ORIGIN (from wash-up)</option>
+        <option value="forward">Forward-drift → predict LANDFALL (from drop)</option>
+      </select>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Latitude</label><input id="dOriginLat" class="mono-in" value="-18.4000"></div>
+      <div class="field"><label>Longitude</label><input id="dOriginLon" class="mono-in" value="178.1300"></div>
+    </div>
+    <button class="btn ghost small" id="dPick" style="margin-bottom:12px">⌖ Pick point on map</button>
+    <div class="field"><label>Drift window — <span id="dDaysV" class="mono">4</span> days</label>
+      <div class="slider-row"><input type="range" id="dDays" min="1" max="21" value="4"><span class="val" id="dDaysV2">4 d</span></div>
+    </div>
+    <div class="field"><label>Ensemble size — <span id="dNV" class="mono">80</span> particles</label>
+      <div class="slider-row"><input type="range" id="dN" min="20" max="240" step="10" value="80"><span class="val" id="dNV2">80</span></div>
+    </div>
+    <button class="btn" id="dRun">Run drift model</button>
+    <div id="dResult"></div>
+    <p class="hint">Uses a climatological surface-current approximation (westward South Equatorial Current) plus SE trade-wind leeway (3%) and turbulent diffusion. <b>Indicative only</b> — connect HYCOM / Copernicus Marine for operational accuracy (docs/DRIFT-MODEL.md).</p>
+  `;
+  $('#dDays').oninput=e=>{ $('#dDaysV').textContent=e.target.value; $('#dDaysV2').textContent=e.target.value+' d'; };
+  $('#dN').oninput   =e=>{ $('#dNV').textContent=e.target.value; $('#dNV2').textContent=e.target.value; };
+  $('#dPick').onclick=()=>pickOnMap((lon,lat)=>{ $('#dOriginLat').value=lat.toFixed(4); $('#dOriginLon').value=(lon>180?lon-360:lon).toFixed(4); });
+  $('#dRun').onclick=runAndReport;
+}
+function runAndReport(){
+  const lat=parseFloat($('#dOriginLat').value), lonRaw=parseFloat($('#dOriginLon').value);
+  const lon = lonRaw<0? lonRaw+360 : lonRaw;
+  const mode=$('#dMode').value, days=parseInt($('#dDays').value), n=parseInt($('#dN').value);
+  if(isNaN(lat)||isNaN(lon)){ toast('Enter a valid lat/lon'); return; }
+  runDrift([lon,lat], mode, days, n);
+  const c=state.drift._centroid;
+  const spread = Math.sqrt(state.drift.particles.reduce((a,p)=>a+Math.hypot((p[0]-c[0])*COSLAT,p[1]-c[1])**2,0)/state.drift.particles.length)*111;
+  $('#dResult').innerHTML = `<div class="hr"></div>
+    <div class="card"><div class="title"><span class="pill info">${mode==='reverse'?'origin':'landfall'}</span> Estimate</div>
+    <div class="meta">Centroid ..... ${latStr(c[1])}  ${lonStr(c[0])}<br>
+    Window ....... ${days} days · ${n} particles<br>
+    Spread (1σ) .. ± ${spread.toFixed(0)} km</div>
+    <div class="notes">${mode==='reverse'?'Probable drop / origin zone shown in cyan on the map.':'Probable wash-up / landfall zone shown in cyan. Cross-check nearby reefs and villages.'}</div></div>`;
+  toast('Drift ensemble computed');
+  pushBrief();
+}
+
+function renderReports(){
+  setHead('HUMINT','Sighting Reports','Community reports of packages, bales, or GPS buoys. Your eyes on the water.');
+  let h = `
+    <div class="safety"><div class="h">⚠ SAFETY FIRST</div>
+      <ul><li>Do not touch, open, or move the item.</li><li>Report from a safe distance.</li></ul></div>
+    <button class="btn" id="newRep">＋ File new sighting</button>
+    <div id="repForm"></div>
+    <div class="hr"></div>
+    <div class="btn-row"><button class="btn ghost small" id="expJSON">Export JSON</button><button class="btn ghost small" id="expCSV">Export CSV</button></div>
+    <div id="repList" style="margin-top:12px"></div>`;
+  $('#ctxBody').innerHTML=h;
+  $('#newRep').onclick=showRepForm;
+  $('#expJSON').onclick=()=>download('sightings.json', JSON.stringify(state.reports,null,2));
+  $('#expCSV').onclick=exportCSV;
+  listReports();
+}
+function showRepForm(){
+  $('#repForm').innerHTML = `
+    <div class="card" style="margin-top:10px">
+      <div class="field"><label>What was seen</label>
+        <select id="rType"><option>Wrapped bale / package</option><option>GPS buoy (silver disc)</option><option>Rope / netting bundle</option><option>Multiple bales tied together</option><option>Other suspicious floating object</option></select></div>
+      <div class="field"><label>Nearest island / area / country</label><input id="rIsland" placeholder="e.g. Lau (Fiji), Vava'u (Tonga), Marquesas, Vanuatu"></div>
+      <div class="row2">
+        <div class="field"><label>Latitude</label><input id="rLat" class="mono-in" placeholder="-18.40"></div>
+        <div class="field"><label>Longitude</label><input id="rLon" class="mono-in" placeholder="178.13"></div>
+      </div>
+      <button class="btn ghost small" id="rPick" style="margin-bottom:10px">⌖ Pick location on map</button>
+      <div class="field"><label>Date &amp; time seen</label><input id="rWhen" type="datetime-local"></div>
+      <div class="field"><label>Notes (condition, drift, markings)</label><textarea id="rNotes" placeholder="Describe what you saw. Do not approach."></textarea></div>
+      <div class="field"><label>Reporter contact (optional)</label><input id="rWho" placeholder="Name / phone — kept local"></div>
+      <div class="btn-row"><button class="btn" id="rSave">Save sighting</button><button class="btn ghost" id="rCancel">Cancel</button></div>
+    </div>`;
+  $('#rWhen').value = new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  $('#rPick').onclick=()=>pickOnMap((lon,lat)=>{ $('#rLat').value=lat.toFixed(4); $('#rLon').value=(lon>180?lon-360:lon).toFixed(4); });
+  $('#rCancel').onclick=()=>{ $('#repForm').innerHTML=''; };
+  $('#rSave').onclick=()=>{
+    const lat=parseFloat($('#rLat').value), lon=parseFloat($('#rLon').value);
+    if(isNaN(lat)||isNaN(lon)){ toast('Set a location (type or pick on map)'); return; }
+    const rep={ id:'r'+Date.now(), type:$('#rType').value, island:$('#rIsland').value||'—',
+      lat, lon, when:$('#rWhen').value, notes:$('#rNotes').value, who:$('#rWho').value, created:Date.now() };
+    state.reports.unshift(rep); save('nayadra.reports', state.reports);
+    $('#repForm').innerHTML=''; listReports(); updateChips(); draw(); pushBrief();
+    toast('Sighting recorded'); view.cx=lon<0?lon+360:lon; view.cy=lat; draw();
+  };
+}
+function listReports(){
+  const el=$('#repList'); if(!el) return;
+  if(!state.reports.length){ el.innerHTML=`<div class="empty">No sightings filed yet.<br>Reports from villages become intelligence that protects the whole coast.</div>`; return; }
+  el.innerHTML = state.reports.map(r=>`
+    <div class="card">
+      <div class="title"><span class="pill watch">sighting</span> ${r.type}</div>
+      <div class="meta">${r.island} · ${latStr(r.lat)} ${lonStr(r.lon)}<br>${r.when? r.when.replace('T',' '):''}${r.who?' · '+r.who:''}</div>
+      ${r.notes?`<div class="notes">${escapeHtml(r.notes)}</div>`:''}
+      <div class="btn-row" style="margin-top:9px">
+        <button class="btn ghost small" data-drift="${r.id}">Reverse-drift</button>
+        <button class="btn ghost small" data-focus="${r.id}">Show</button>
+        <button class="btn ghost small" data-del="${r.id}">Delete</button>
+      </div>
+    </div>`).join('');
+  $$('[data-drift]',el).forEach(b=>b.onclick=()=>{ const r=state.reports.find(x=>x.id===b.dataset.drift); setMod('drift'); setTimeout(()=>startDriftFrom(r.lon<0?r.lon+360:r.lon, r.lat, 'reverse'),30); });
+  $$('[data-focus]',el).forEach(b=>b.onclick=()=>{ const r=state.reports.find(x=>x.id===b.dataset.focus); view.cx=r.lon<0?r.lon+360:r.lon; view.cy=r.lat; view.scale=90; draw(); });
+  $$('[data-del]',el).forEach(b=>b.onclick=()=>{ state.reports=state.reports.filter(x=>x.id!==b.dataset.del); save('nayadra.reports',state.reports); listReports(); updateChips(); draw(); pushBrief(); });
+}
+function exportCSV(){
+  const head='type,island,lat,lon,when,notes,reporter\n';
+  const rows=state.reports.map(r=>[r.type,r.island,r.lat,r.lon,r.when,(r.notes||'').replace(/[\n,]/g,' '),(r.who||'')].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  download('sightings.csv', head+rows);
+}
+
+function renderADSB(){
+  setHead('AIR','ADS-B Correlation','Cross-reference aircraft with vessel movements — light aircraft over drop zones can indicate aerial resupply or spotting.');
+  let h=`<div class="hint" style="margin-bottom:10px">Enable the <b>Aircraft</b> map layer to plot tracks. Sample feed shown — connect OpenSky Network for live ADS-B (docs/DATA-SOURCES.md).</div>`;
+  for(const a of state.aircraft){
+    h+=`<div class="card"><div class="title"><span class="pill ${a.flag?'alert':'info'}">${a.flag?'flagged':'transit'}</span> ${a.call}</div>
+    <div class="meta">Alt .... FL${Math.round(a.alt/100)}<br>Pos .... ${latStr(a.lat)} ${lonStr(a.lon)}<br>Hdg .... ${a.hdg}°</div>
+    ${a.flag?'<div class="notes">Low-altitude light aircraft loitering over open water near flagged vessel activity.</div>':''}</div>`;
+  }
+  h+=`<button class="btn ghost small" id="showAir" style="margin-top:6px">Toggle aircraft layer</button>`;
+  $('#ctxBody').innerHTML=h;
+  $('#showAir').onclick=()=>{ const cb=$('input[data-layer=adsb]'); cb.checked=!cb.checked; state.layers.adsb=cb.checked; draw(); };
+}
+
+function renderSat(){
+  setHead('EO','Satellite Tasking','Generate a Copernicus / Sentinel Hub request for a target box — image a suspected drop site or wash-up area.');
+  $('#ctxBody').innerHTML = `
+    <div class="row2">
+      <div class="field"><label>Center lat</label><input id="sLat" class="mono-in" value="-18.4000"></div>
+      <div class="field"><label>Center lon</label><input id="sLon" class="mono-in" value="178.1300"></div>
+    </div>
+    <button class="btn ghost small" id="sPick" style="margin-bottom:12px">⌖ Pick center on map</button>
+    <div class="field"><label>Box size — <span id="sBoxV" class="mono">20</span> km</label>
+      <div class="slider-row"><input type="range" id="sBox" min="4" max="80" value="20"><span class="val" id="sBoxV2">20 km</span></div></div>
+    <div class="field"><label>Date</label><input id="sDate" type="date"></div>
+    <div class="field"><label>Sensor</label><select id="sSensor"><option value="SENTINEL2_L2A">Sentinel-2 (optical, 10 m)</option><option value="SENTINEL1_IW">Sentinel-1 (SAR — sees through cloud)</option></select></div>
+    <button class="btn" id="sGen">Build tasking request</button>
+    <div id="sOut"></div>
+    <p class="hint">Produces a bounding box + Copernicus Browser deep link and a WMS/Process API template. Add your Sentinel Hub / Copernicus Data Space token to pull imagery (docs/DATA-SOURCES.md). SAR is preferred for cloud-covered reefs.</p>`;
+  $('#sDate').value=new Date().toISOString().slice(0,10);
+  $('#sBox').oninput=e=>{ $('#sBoxV').textContent=e.target.value; $('#sBoxV2').textContent=e.target.value+' km'; };
+  $('#sPick').onclick=()=>pickOnMap((lon,lat)=>{ $('#sLat').value=lat.toFixed(4); $('#sLon').value=(lon>180?lon-360:lon).toFixed(4); });
+  $('#sGen').onclick=()=>{
+    const lat=parseFloat($('#sLat').value), lon=parseFloat($('#sLon').value), km=parseInt($('#sBox').value);
+    const dLat=km/111, dLon=km/(111*COSLAT);
+    const bbox=[ (lon-dLon).toFixed(4),(lat-dLat).toFixed(4),(lon+dLon).toFixed(4),(lat+dLat).toFixed(4) ];
+    const date=$('#sDate').value, sensor=$('#sSensor').value;
+    const browser=`https://dataspace.copernicus.eu/browser/?zoom=12&lat=${lat.toFixed(4)}&lng=${lon.toFixed(4)}&themeId=DEFAULT-THEME&datasetId=${sensor==='SENTINEL1_IW'?'S1_CDAS_IW_VVVH':'S2_L2A_CDAS'}&fromTime=${date}T00:00:00Z&toTime=${date}T23:59:59Z`;
+    $('#sOut').innerHTML=`<div class="hr"></div>
+      <div class="card"><div class="title"><span class="pill info">tasking</span> ${sensor.replace('_',' ')}</div>
+      <div class="meta">BBox (WGS84):<br>${bbox.join(', ')}<br>Date ... ${date}</div></div>
+      <div class="hint">Open in Copernicus Browser:</div>
+      <code class="block">${browser}</code>
+      <div class="hint">Process API body (add auth token):</div>
+      <code class="block">{
+  "input": { "bounds": { "bbox": [${bbox.join(', ')}] },
+    "data": [{ "type": "${sensor}", "dataFilter": { "timeRange": { "from": "${date}T00:00:00Z", "to": "${date}T23:59:59Z" } } }] },
+  "output": { "width": 1024, "height": 1024,
+    "responses": [{ "identifier": "default", "format": { "type": "image/png" } }] }
+}</code>`;
+    toast('Tasking request built');
+  };
+}
+
+function renderBrief(){
+  setHead('PRODUCT','Daily Intelligence Brief','Auto-compiled summary for partner agencies. Export as Markdown.');
+  const md = buildBrief();
+  $('#ctxBody').innerHTML = `
+    <div class="btn-row" style="margin-bottom:10px"><button class="btn small" id="bCopy">Copy</button><button class="btn ghost small" id="bDl">Download .md</button></div>
+    <code class="block" id="bText" style="max-height:none">${escapeHtml(md)}</code>`;
+  $('#bCopy').onclick=()=>{ navigator.clipboard?.writeText(md); toast('Brief copied'); };
+  $('#bDl').onclick=()=>download('nayadra-brief.md', md);
+}
+function buildBrief(){
+  const now=new Date().toISOString().replace('T',' ').slice(0,16);
+  const dark=state.vessels.filter(v=>v.status==='dark');
+  const anom=state.vessels.filter(v=>v.status==='alert');
+  const watch=state.vessels.filter(v=>v.status==='watch');
+  let s=`# KAILA — DAILY OCEAN WATCH BRIEF\n`;
+  s+=`Region: South Pacific (Melanesia–Polynesia belt) · Generated: ${now} UTC\nClassification: PROTOTYPE / UNCLASSIFIED\n\n`;
+  s+=`## 1. Summary\n`;
+  s+=`- Vessels tracked: ${state.vessels.length}\n- Dark vessels: ${dark.length}\n- GPS anomalies: ${anom.length}\n- Loitering/behavioural flags: ${watch.length}\n- Open community sightings: ${state.reports.length}\n\n`;
+  s+=`## 2. Vessels of interest\n`;
+  const voi=[...dark,...anom,...watch];
+  if(!voi.length) s+=`- None.\n`;
+  else voi.forEach(v=>{ s+=`- ${v.name} (MMSI ${v.mmsi}, ${v.type}) — ${v.flags.join('; ')||v.status} @ ${latStr(v.lat)} ${lonStr(v.lon)}\n`; });
+  s+=`\n## 3. Community sightings\n`;
+  if(!state.reports.length) s+=`- None filed.\n`;
+  else state.reports.forEach(r=>{ s+=`- ${r.type} near ${r.island} @ ${latStr(r.lat)} ${lonStr(r.lon)} (${r.when||'time n/r'})${r.notes?` — ${r.notes}`:''}\n`; });
+  s+=`\n## 4. Drift assessment\n`;
+  if(state.drift){ const c=state.drift._centroid;
+    s+=`- ${state.drift.mode==='reverse'?'Reverse-drift origin':'Forward-drift landfall'} estimate: ${latStr(c[1])} ${lonStr(c[0])} over ${state.drift.days}-day window (${state.drift.count} particles).\n`;
+  } else s+=`- No drift model run this session.\n`;
+  s+=`\n## 5. Recommended actions\n- Task Sentinel-1 SAR over flagged positions and sighting locations.\n- Correlate ADS-B for aerial activity over open-water drop zones.\n- Share sighting geolocations with the responsible national authority.\n- Advise coastal communities: do not touch recovered packages; report location.\n\n---\n_Generated by KAILA (Open Ocean Watch) prototype from simulated feeds and community input. Not for sole operational reliance._\n`;
+  return s;
+}
+function pushBrief(){ if(state.mod==='brief') renderBrief(); if(state.mod==='overview') renderOverview(); }
+
+/* ---------------------------------------------------------------------------
+   11. Helpers: download, escape, chips, theme
+   ------------------------------------------------------------------------- */
+function download(name, text){
+  const b=new Blob([text],{type:'text/plain'}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function updateChips(){
+  $('#aisCount').textContent=state.vessels.length;
+  $('#repCount').textContent=state.reports.length;
+  const flagged=state.vessels.filter(v=>v.status!=='ok').length;
+  const c=$('#aisCount'); c.classList.toggle('alert', flagged>0);
+  $('#vesselChip').textContent=`${state.vessels.length} vessels · ${flagged} flagged`;
+}
+
+/* ---------------------------------------------------------------------------
+   12. Live-feed integration stub (opt-in; no-op inside sandbox).
+       When run as a local file with network + a key, AISStream streams live.
+   ------------------------------------------------------------------------- */
+function connectLiveAIS(apiKey, bbox=[[-40,150],[-4,180]]){ // AISStream bbox: [[lat,lon],[lat,lon]] in -180..180; widen/split for the eastern Pacific
+  try{
+    const ws=new WebSocket('wss://stream.aisstream.io/v0/stream');
+    ws.onopen=()=>ws.send(JSON.stringify({ APIKey:apiKey, BoundingBoxes:[bbox], FilterMessageTypes:['PositionReport'] }));
+    ws.onmessage=ev=>{
+      const m=JSON.parse(ev.data); const pr=m.Message?.PositionReport; if(!pr) return;
+      const id='ais'+pr.UserID; let v=state.vessels.find(x=>x.id===id);
+      if(!v){ v={ id, mmsi:pr.UserID, name:(m.MetaData?.ShipName||'AIS '+pr.UserID).trim(), type:'AIS', lon:pr.Longitude, lat:pr.Latitude, hdg:pr.Cog||0, spd:pr.Sog||0, track:[], status:'ok', flags:[], lastSeen:0 }; state.vessels.push(v); }
+      v.lon=pr.Longitude; v.lat=pr.Latitude; v.hdg=pr.Cog||v.hdg; v.spd=pr.Sog||0; v.track.push([v.lon,v.lat]); if(v.track.length>40)v.track.shift();
+      draw(); updateChips();
+    };
+    $('#feedState').textContent='AIS LIVE'; toast('Live AIS connected');
+  }catch(e){ toast('Live AIS unavailable in this environment'); }
+}
+window.KAILA = { connectLiveAIS, runDrift, buildBrief, state }; // console access for operators
+
+/* ---------------------------------------------------------------------------
+   13. Boot
+   ------------------------------------------------------------------------- */
+$$('.mod').forEach(b=>b.onclick=()=>{ state.selected=null; setMod(b.dataset.mod); });
+$$('.layer-toggle input').forEach(cb=>cb.onchange=()=>{ state.layers[cb.dataset.layer]=cb.checked; draw(); });
+$('#themeBtn').onclick=()=>{
+  const cur=document.documentElement.getAttribute('data-theme');
+  const next=cur==='light'?'dark':(cur==='dark'?'light': (matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'));
+  document.documentElement.setAttribute('data-theme', next); draw();
+};
+function clockTick(){ $('#clock').textContent=new Date().toISOString().slice(11,19)+' UTC'; }
+
+window.addEventListener('resize', resize);
+resize();
+setMod('overview');
+updateChips();
+clockTick(); setInterval(clockTick, 1000);
+setInterval(stepFleet, 1600);   // simulated feed cadence
+draw();
+</script>
