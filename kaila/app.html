@@ -360,7 +360,7 @@
       <button class="mod" data-mod="drift"><span class="glyph">≈</span><span class="lbl">Drift Analysis</span></button>
       <button class="mod" data-mod="reports"><span class="glyph">◈</span><span class="lbl">Sighting Reports</span><span class="count" id="repCount">0</span></button>
       <button class="mod" data-mod="adsb"><span class="glyph">✈</span><span class="lbl">Air Correlation</span></button>
-      <button class="mod" data-mod="sat"><span class="glyph">◱</span><span class="lbl">Satellite Tasking</span></button>
+      <button class="mod" data-mod="sat"><span class="glyph">◱</span><span class="lbl">Satellite Imagery</span></button>
       <button class="mod" data-mod="brief"><span class="glyph">❐</span><span class="lbl">Intel Brief</span></button>
     </div>
     <div class="group">
@@ -372,6 +372,7 @@
       <label class="layer-toggle"><input type="checkbox" data-layer="drift" checked><span class="lbl">Drift ensemble</span><span class="swatch" style="background:var(--drift)"></span></label>
       <label class="layer-toggle"><input type="checkbox" data-layer="adsb"><span class="lbl">Aircraft</span><span class="swatch" style="background:var(--air)"></span></label>
       <label class="layer-toggle"><input type="checkbox" data-layer="currents"><span class="lbl">Current field</span><span class="swatch" style="background:#2b5a6b"></span></label>
+      <label class="layer-toggle"><input type="checkbox" data-layer="imagery"><span class="lbl">NRT imagery</span><span class="swatch" style="background:#4a6d8c"></span></label>
     </div>
     <div class="foot">
       Prototype · open-data build.<br>
@@ -555,7 +556,8 @@ const LEEWAY = 0.03; // 3% of wind speed added to object drift
    ------------------------------------------------------------------------- */
 const state = {
   mod: 'overview',
-  layers: { corridors:true, vessels:true, tracks:true, reports:true, drift:true, adsb:false, currents:false },
+  layers: { corridors:true, vessels:true, tracks:true, reports:true, drift:true, adsb:false, currents:false, imagery:false },
+  imgDate: new Date(Date.now()-86400000).toISOString().slice(0,10), // yesterday UTC — latest complete VIIRS mosaic
   vessels: [],
   aircraft: [],
   reports: load('nayadra.reports', []),
@@ -679,6 +681,54 @@ function runDrift(origin, mode, days, count){
    ------------------------------------------------------------------------- */
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
+/* --- NRT satellite imagery layer: NASA GIBS WMTS (VIIRS true color) -------
+   Free, no API key. ~3 h latency, twice-daily global coverage at 375 m.
+   Tiles are fetched straight from gibs.earthdata.nasa.gov when the app runs
+   with internet access (open app.html locally). Where external requests are
+   blocked (offline, or a strict hosting CSP), the layer degrades to a notice
+   and the link-out tools in the Satellite module still work. */
+const IMG = { cache:new Map(), fails:0, blocked:false, layer:'VIIRS_SNPP_CorrectedReflectance_TrueColor' };
+function gibsTile(url){
+  let e=IMG.cache.get(url);
+  if(e===undefined){
+    if(IMG.cache.size>360) IMG.cache.clear();
+    const im=new Image();
+    e={im,ok:false};
+    im.onload =()=>{ e.ok=true; IMG.fails=0; IMG.blocked=false; draw(); };
+    im.onerror=()=>{ IMG.fails++; if(IMG.fails>10) IMG.blocked=true; };
+    im.src=url;
+    IMG.cache.set(url,e);
+  }
+  return e;
+}
+function drawImagery(){
+  const pixPerDeg=view.scale*COSLAT;
+  // GIBS epsg4326 "250m" grid: 512px tiles, level z = 2^(z+1) cols x 2^z rows
+  let z=Math.ceil(Math.log2(Math.max(1,180*pixPerDeg/512))); z=clamp(z,0,7);
+  const deg=180/Math.pow(2,z);
+  const [lonA]=unproject(0,0), [lonB,latBot]=unproject(view.w,view.h);
+  const latTop=unproject(0,0)[1];
+  for(let L=Math.floor(lonA/deg)*deg; L<lonB; L+=deg){
+    const Ln=((L%360)+540)%360-180;           // continuous lon -> -180..180 tile frame
+    const col=Math.round((Ln+180)/deg);
+    for(let lat=Math.min(90,Math.ceil(latTop/deg)*deg); lat>Math.max(-90,latBot-deg); lat-=deg){
+      const row=Math.round((90-lat)/deg);
+      if(row<0||row>=Math.pow(2,z)) continue;
+      const t=gibsTile(`https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/${IMG.layer}/default/${state.imgDate}/250m/${z}/${row}/${col}.jpg`);
+      if(t.ok){
+        const [x0,y0]=project(L,lat), [x1,y1]=project(L+deg,lat-deg);
+        ctx.drawImage(t.im, x0, y0, x1-x0, y1-y0);
+      }
+    }
+  }
+  // dim imagery so operational vectors stay readable on top
+  ctx.fillStyle='rgba(8,15,28,0.34)'; ctx.fillRect(0,0,view.w,view.h);
+  if(IMG.blocked){
+    ctx.fillStyle=css('--watch'); ctx.font='10px '+css('--mono');
+    ctx.fillText('NRT imagery unreachable here (offline or hosting blocks external tiles) — open app.html locally, or use the link-out sources in Satellite Imagery', 12, 16);
+  }
+}
+
 function draw(){
   ctx.clearRect(0,0,view.w,view.h);
   // ocean backdrop subtle depth gradient
@@ -686,6 +736,7 @@ function draw(){
   g.addColorStop(0, css('--deep')); g.addColorStop(1, css('--abyss'));
   ctx.fillStyle = g; ctx.fillRect(0,0,view.w,view.h);
 
+  if(state.layers.imagery) drawImagery();
   drawGraticule();
   if(state.layers.currents) drawCurrents();
   if(state.layers.corridors) drawCorridors();
@@ -1155,7 +1206,7 @@ function renderADSB(){
 }
 
 function renderSat(){
-  setHead('EO','Satellite Tasking','Generate a Copernicus / Sentinel Hub request for a target box — image a suspected drop site or wash-up area.');
+  setHead('EO','Satellite Imagery','Free near-real-time imagery over any target — no keys required — plus Sentinel tasking for high-resolution follow-up.');
   $('#ctxBody').innerHTML = `
     <div class="row2">
       <div class="field"><label>Center lat</label><input id="sLat" class="mono-in" value="-18.4000"></div>
@@ -1165,13 +1216,53 @@ function renderSat(){
     <div class="field"><label>Box size — <span id="sBoxV" class="mono">20</span> km</label>
       <div class="slider-row"><input type="range" id="sBox" min="4" max="80" value="20"><span class="val" id="sBoxV2">20 km</span></div></div>
     <div class="field"><label>Date</label><input id="sDate" type="date"></div>
+
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-faint);margin:4px 0 8px;font-weight:700">Near-real-time · free · no key</div>
+    <button class="btn" id="sNRT">Build live imagery links</button>
+    <div class="btn-row" style="margin-top:8px"><button class="btn ghost small" id="sLayer">Toggle in-map VIIRS layer</button></div>
+    <div id="sNrtOut"></div>
+    <div class="hr"></div>
+
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-faint);margin:2px 0 8px;font-weight:700">High-resolution follow-up · Sentinel</div>
     <div class="field"><label>Sensor</label><select id="sSensor"><option value="SENTINEL2_L2A">Sentinel-2 (optical, 10 m)</option><option value="SENTINEL1_IW">Sentinel-1 (SAR — sees through cloud)</option></select></div>
-    <button class="btn" id="sGen">Build tasking request</button>
+    <button class="btn ghost" id="sGen">Build Sentinel tasking request</button>
     <div id="sOut"></div>
-    <p class="hint">Produces a bounding box + Copernicus Browser deep link and a WMS/Process API template. Add your Sentinel Hub / Copernicus Data Space token to pull imagery (docs/DATA-SOURCES.md). SAR is preferred for cloud-covered reefs.</p>`;
-  $('#sDate').value=new Date().toISOString().slice(0,10);
+    <p class="hint">Latency guide — GOES-18 / Himawari-9: <b>10 min</b>, whole-ocean weather scale (0.5–2 km). VIIRS (NASA GIBS/Worldview): <b>~3 h</b>, 375 m, twice daily. Sentinel-2: 10 m but ~5-day revisit — for confirming a located target, not for search. Details in docs/DATA-SOURCES.md.</p>`;
+  $('#sDate').value=state.imgDate;
   $('#sBox').oninput=e=>{ $('#sBoxV').textContent=e.target.value; $('#sBoxV2').textContent=e.target.value+' km'; };
   $('#sPick').onclick=()=>pickOnMap((lon,lat)=>{ $('#sLat').value=lat.toFixed(4); $('#sLon').value=(lon>180?lon-360:lon).toFixed(4); });
+  $('#sDate').onchange=e=>{ state.imgDate=e.target.value; IMG.cache.clear(); IMG.fails=0; IMG.blocked=false; draw(); };
+  $('#sLayer').onclick=()=>{ const cb=$('input[data-layer=imagery]'); cb.checked=!cb.checked; state.layers.imagery=cb.checked; draw();
+    if(cb.checked) toast('VIIRS layer on — needs internet; ~3 h latency'); };
+  $('#sNRT').onclick=()=>{
+    const lat=parseFloat($('#sLat').value); let lon=parseFloat($('#sLon').value);
+    if(isNaN(lat)||isNaN(lon)){ toast('Set a target first'); return; }
+    if(lon>180) lon-=360;                       // -180..180 frame for external viewers
+    const km=parseInt($('#sBox').value), date=$('#sDate').value||state.imgDate;
+    const dLat=km/111, dLon=km/(111*Math.cos(lat*Math.PI/180));
+    const f=n=>n.toFixed(4);
+    // NASA Worldview interactive (VIIRS true color, ~3 h latency, 375 m)
+    const wv=`https://worldview.earthdata.nasa.gov/?v=${f(lon-dLon*3)},${f(lat-dLat*3)},${f(lon+dLon*3)},${f(lat+dLat*3)}&t=${date}&l=VIIRS_SNPP_CorrectedReflectance_TrueColor,Coastlines_15m`;
+    // Worldview Snapshots: direct still image for the exact box (BBOX = minLat,minLon,maxLat,maxLon)
+    const snap=`https://wvs.earthdata.nasa.gov/api/v1/snapshot?REQUEST=GetSnapshot&TIME=${date}&BBOX=${f(lat-dLat)},${f(lon-dLon)},${f(lat+dLat)},${f(lon+dLon)}&CRS=EPSG:4326&LAYERS=VIIRS_SNPP_CorrectedReflectance_TrueColor,Coastlines_15m&FORMAT=image/jpeg&WIDTH=1024&HEIGHT=1024`;
+    // Geostationary, 10-minute refresh
+    const goesFD='https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/1808x1808.jpg';
+    const goesDir='https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/';
+    const slider='https://rammb-slider.cira.colostate.edu/?sat=himawari&sec=full_disk&p%5B0%5D=geocolor';
+    const zoomE=`https://zoom.earth/maps/satellite/#view=${f(lat)},${f(lon)},8z`;
+    const A=(u,t)=>`<a href="${u.replace(/&/g,'&amp;')}" target="_blank" rel="noopener" style="color:var(--cyan)">${t}</a>`;
+    $('#sNrtOut').innerHTML=`
+      <div class="card" style="margin-top:10px"><div class="title"><span class="pill info">nrt</span> Live sources for ${f(lat)}, ${f(lon)}</div>
+        <div class="notes" style="line-height:1.9">
+        ⏱ 10 min — ${A(goesFD,'GOES-18 GeoColor latest (C/E Pacific)')} · ${A(goesDir,'archive')}<br>
+        ⏱ 10 min — ${A(slider,'Himawari-9 GeoColor (W Pacific, RAMMB SLIDER)')}<br>
+        ⏱ ~3 h — ${A(wv,'NASA Worldview at target (VIIRS 375 m)')}<br>
+        ⏱ ~3 h — ${A(snap,'Direct still image of target box (Worldview Snapshot)')}<br>
+        ⏱ mixed — ${A(zoomE,'Zoom Earth live view at target')}</div>
+        <div class="notes">Tip: geostationary (10-min) shows weather + cloud over the search area; VIIRS shows the ocean surface twice daily; Sentinel confirms a located target at 10 m.</div>
+      </div>`;
+    toast('Live imagery links built');
+  };
   $('#sGen').onclick=()=>{
     const lat=parseFloat($('#sLat').value), lon=parseFloat($('#sLon').value), km=parseInt($('#sBox').value);
     const dLat=km/111, dLon=km/(111*COSLAT);

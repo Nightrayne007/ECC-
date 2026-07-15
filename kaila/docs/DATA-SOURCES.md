@@ -50,15 +50,81 @@ to bilinearly interpolate that grid. See [`DRIFT-MODEL.md`](DRIFT-MODEL.md).
 
 ---
 
-## 3. Satellite imagery
+## 3. Satellite imagery — near-real-time, free, no key
 
-The **Satellite Tasking** module builds a bounding box, a **Copernicus Browser**
-deep link, and a **Process API** request body for any target.
+The **Satellite Imagery** module has two tiers: free NRT sources for *search
+and situational awareness*, and Sentinel tasking for *high-resolution
+confirmation* of a located target.
+
+### Latency ladder
+
+| Source | Refresh / latency | Resolution | Coverage | Auth |
+|---|---|---|---|---|
+| **NOAA GOES-18** GeoColor | **10 min** | 0.5–2 km | Central/eastern Pacific (137°W) | none |
+| **JMA Himawari-9** GeoColor | **10 min** | 0.5–2 km | Western Pacific (140.7°E) | none |
+| **NASA VIIRS** (GIBS/Worldview) | **~3 h**, 2×/day | 375 m | Global | none |
+| **Sentinel-2** (Copernicus) | ~5-day revisit | 10 m | Global | free account |
+| **Sentinel-1 SAR** (Copernicus) | days (orbit-dependent) | ~20 m, sees through cloud | Global | free account |
+
+A 10-minute geostationary feed can't resolve a bale, but it gives cloud cover
+and weather over a search area *right now*; VIIRS at 375 m shows ocean-surface
+context twice a day; Sentinel confirms a located target at 10 m. Use them in
+that order.
+
+### NASA GIBS — the in-map imagery layer
+
+The **NRT imagery** map layer draws VIIRS true-color tiles straight from GIBS
+(free, no key, ~3 h latency). Tile template used:
+
+```
+https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/
+  VIIRS_SNPP_CorrectedReflectance_TrueColor/default/{YYYY-MM-DD}/250m/{z}/{row}/{col}.jpg
+```
+
+- Works when `app.html` runs with internet access (open the file locally).
+  Hosting environments with a strict CSP (e.g. the published artifact) block
+  external tiles — the layer shows a notice and the link-out tools still work.
+- Swap the layer id for other GIBS products (e.g.
+  `MODIS_Terra_CorrectedReflectance_TrueColor`, or VIIRS NOAA-20/21 variants).
+- Docs: https://nasa-gibs.github.io/gibs-api-docs/
+
+### Worldview Snapshots — direct still images
+
+One URL returns a georeferenced JPEG of any box — ideal for pasting into a
+report or brief (`BBOX` order is `minLat,minLon,maxLat,maxLon`):
+
+```
+https://wvs.earthdata.nasa.gov/api/v1/snapshot?REQUEST=GetSnapshot
+  &TIME=2026-07-14&BBOX=-19.4,177.1,-17.4,179.1&CRS=EPSG:4326
+  &LAYERS=VIIRS_SNPP_CorrectedReflectance_TrueColor,Coastlines_15m
+  &FORMAT=image/jpeg&WIDTH=1024&HEIGHT=1024
+```
+
+### Geostationary — 10-minute refresh
+
+- **GOES-18 (GOES-West)** latest GeoColor full disk:
+  `https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/1808x1808.jpg`
+  (resolution-named files are always the latest frame; directory listing has
+  timestamped history). Sector imagery under `.../ABI/SECTOR/`.
+- **Himawari-9** (western Pacific): RAMMB SLIDER viewer
+  `https://rammb-slider.cira.colostate.edu/?sat=himawari` — animatable,
+  10-minute GeoColor full disk.
+- **Zoom Earth** combines both interactively: https://zoom.earth
+
+### Sentinel — high-resolution follow-up
+
+The module still builds a bounding box, a **Copernicus Browser** deep link, and
+a **Process API** request body for any target.
 
 - Copernicus Data Space (free): https://dataspace.copernicus.eu
 - Add an OAuth token to the Process API body to pull imagery programmatically.
 - **Sentinel-1 (SAR)** sees through cloud — preferred for wet-season reefs.
 - **Sentinel-2 (optical, 10 m)** for clear-sky visual confirmation.
+
+### Bonus: NASA FIRMS
+
+Thermal-anomaly detections (VIIRS/MODIS, ~3 h latency, free key) can flag
+vessels burning or flaring at night: https://firms.modaps.eosdis.nasa.gov
 
 ---
 

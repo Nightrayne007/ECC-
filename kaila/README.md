@@ -87,7 +87,7 @@ browser), and the intelligence brief all run with no connection. Live feeds
 | **Drift Analysis** | **Reverse-drift** — from a wash-up point, estimate the origin/drop zone. **Forward-drift** — from a drop point, predict landfall. Lagrangian particle ensemble. |
 | **Sighting Reports** | Community intake. Pin a location, record type/time/notes, export JSON/CSV, and run drift straight from a report. |
 | **Air Correlation** | ADS-B overlay — light aircraft over open-water drop zones can indicate aerial resupply or spotting. |
-| **Satellite Tasking** | Build a Sentinel-1 (SAR) / Sentinel-2 (optical) request + Copernicus deep link for any target box. |
+| **Satellite Imagery** | Free near-real-time sources for any target — GOES-18 / Himawari-9 GeoColor (10-min refresh), NASA VIIRS via GIBS/Worldview (~3 h, incl. an in-map imagery layer and direct still-image URLs) — plus Sentinel-1/2 tasking for 10 m follow-up. |
 | **Intel Brief** | Auto-compiled brief for partner agencies, exportable as Markdown. |
 
 <br>
