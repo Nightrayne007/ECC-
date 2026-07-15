@@ -33,6 +33,35 @@ fleet as position reports arrive.
 Better for behavioural/loitering analysis of fishing vessels.
 - API: https://globalfishingwatch.org/our-apis/
 
+## 1b. Yacht & small-craft tracking
+
+Yachts matter: the seasonal cruising route from the Americas (the "Coconut
+Milk Run" — Panama/Galápagos → Marquesas → Tuamotus → Society Is. → Cooks →
+Tonga → Fiji, roughly May–October) overlaps the eastern cocaine corridor, and
+trafficking yachts hide among hundreds of legitimate cruisers making the same
+passage.
+
+- **Class B AIS** — KAILA's live-AIS client already subscribes to
+  `StandardClassBPositionReport` alongside Class A. Most cruising yachts
+  carry Class B transceivers (lower power, intermittent at range — gaps are
+  normal, *sustained* silence inbound to an island group is the anomaly).
+- **NoForeignLand** (https://www.noforeignland.com) — the cruising community's
+  own voluntary tracker; public boat pages show passages and anchorages.
+  Useful for establishing what *normal* looks like in an anchorage.
+- **PredictWind tracking** (https://forecast.predictwind.com) — many offshore
+  yachts publish public tracking pages while on passage.
+- **Rally schedules** — World ARC, Pacific Puddle Jump etc. publish fleet
+  lists and ETAs; a "cruiser" arriving far outside rally season and route
+  norms is worth a second look.
+- **Port-of-entry clearance records** — the strongest signal is negative
+  space: a yacht at anchor that never appears in any clearance record. KAILA
+  flags yachts anchored >50 km from a designated port of entry; corroborate
+  against the national clearance list (customs/immigration).
+- **The community watchlist** (in the Yacht Watch module) is for the majority
+  case: a suspect yacht transmitting nothing at all. Hull name, sail number,
+  colour, tender, crew count, and where it was seen — logged locally,
+  exportable with the brief.
+
 ---
 
 ## 2. Ocean currents (drift model)

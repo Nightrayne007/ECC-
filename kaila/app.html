@@ -357,6 +357,7 @@
       <h3>Modules</h3>
       <button class="mod active" data-mod="overview"><span class="glyph">◎</span><span class="lbl">Overview</span></button>
       <button class="mod" data-mod="ais"><span class="glyph">⛴</span><span class="lbl">Vessel Tracking</span><span class="count" id="aisCount">0</span></button>
+      <button class="mod" data-mod="yachts"><span class="glyph">⛵</span><span class="lbl">Yacht Watch</span><span class="count" id="ytCount">0</span></button>
       <button class="mod" data-mod="drift"><span class="glyph">≈</span><span class="lbl">Drift Analysis</span></button>
       <button class="mod" data-mod="reports"><span class="glyph">◈</span><span class="lbl">Sighting Reports</span><span class="count" id="repCount">0</span></button>
       <button class="mod" data-mod="adsb"><span class="glyph">✈</span><span class="lbl">Air Correlation</span></button>
@@ -393,6 +394,7 @@
         <div class="item"><span class="k" style="background:var(--sand)"></span>Sighting / market</div>
         <div class="item"><span class="k" style="background:var(--drift)"></span>Drift estimate</div>
         <div class="item"><span class="k" style="background:var(--cyan)"></span>Transit node</div>
+        <div class="item"><span class="k" style="background:transparent;border:1.5px solid var(--ok);border-radius:1px"></span>Yacht (Class B)</div>
         <div class="item"><span class="k" style="background:var(--air)"></span>Aircraft</div>
       </div>
     </div>
@@ -561,6 +563,7 @@ const state = {
   vessels: [],
   aircraft: [],
   reports: load('nayadra.reports', []),
+  yachtWatch: load('kaila.yachtwatch', []),
   drift: null,            // { mode, particles:[[lon,lat]...], trails:[[..]], origin:[lon,lat], days }
   placing: null,          // callback awaiting a map click
   selected: null,         // selected vessel id
@@ -596,7 +599,53 @@ function seedFleet(){
   fleet[6].scenario = 'loiter';    // low-speed circling near reef (behavioural)
   fleet[6].spd = 1.2;
   fleet[9].scenario = 'jump';      // impossible position jump (AIS spoof)
+
+  // Sailing yachts on the seasonal cruising route ("Coconut Milk Run") —
+  // Marquesas -> Tuamotus -> Society Is. -> Cooks -> Tonga -> Fiji. The same
+  // west-bound track as the eastern cocaine corridor; Class B AIS.
+  const YACHTS = [
+    ['SV MOANA KAI',        219.9, -9.2 ],
+    ['SV TRADEWIND DRIFTER',213.5, -14.8],
+    ['SV SOUTHERN CROSS II',209.8, -17.3],
+    ['SV ISA LEI',          177.63,-18.55],   // anchored off Vatulele
+    ['SV PACIFIC WANDERER', 183.4, -18.6 ],
+    ['SV KOROLEVU',         198.6, -20.4 ],
+  ];
+  YACHTS.forEach((y,i)=>{
+    fleet.push({
+      id:'y'+i, mmsi: 520100000 + i*37, cls:'B',
+      name: y[0], type:'Yacht',
+      lon:y[1], lat:y[2], hdg: 255 + rand(-12,12),
+      spd: rand(4.5,6.5),
+      track:[[y[1],y[2]]],
+      status:'ok', lastSeen:0, flags:[], stopped:0,
+    });
+  });
+  const yd = fleet.filter(v=>v.type==='Yacht');
+  yd[1].scenario='rv';           // matched drift with a cargo vessel mid-ocean
+  yd[3].spd = 0.5;               // ISA LEI at anchor -> triggers the clearance rule
+  yd[4].scenario='darkArrival';  // goes dark inbound to the Lau Group
   return fleet;
+}
+
+// Designated ports of entry — yachts must clear in at one of these before
+// anchoring elsewhere. Lon in the continuous 0..360+ frame.
+const PORTS_OF_ENTRY = [
+  { name:'Suva', lon:178.44, lat:-18.14 }, { name:'Lautoka', lon:177.45, lat:-17.60 },
+  { name:'Savusavu', lon:179.34, lat:-16.78 }, { name:'Levuka', lon:178.84, lat:-17.68 },
+  { name:'Nukuʻalofa', lon:184.80, lat:-21.13 }, { name:'Neiafu (Vavaʻu)', lon:186.33, lat:-18.65 },
+  { name:'Apia', lon:188.23, lat:-13.83 }, { name:'Port Vila', lon:168.32, lat:-17.74 },
+  { name:'Nouméa', lon:166.44, lat:-22.27 }, { name:'Papeete', lon:210.44, lat:-17.53 },
+  { name:'Avatiu (Rarotonga)', lon:200.22, lat:-21.20 }, { name:'Taiohae (Marquesas)', lon:219.92, lat:-8.92 },
+  { name:'Honiara', lon:159.95, lat:-9.43 }, { name:'Alofi (Niue)', lon:190.08, lat:-19.05 },
+];
+function nearestPoE(lon,lat){
+  let best=1e9, name='';
+  for(const p of PORTS_OF_ENTRY){
+    const d=Math.hypot((lon-p.lon)*COSLAT, lat-p.lat);
+    if(d<best){ best=d; name=p.name; }
+  }
+  return { deg:best, km:best*111, name };
 }
 state.vessels = seedFleet();
 
@@ -612,6 +661,16 @@ function stepFleet(){
       v.status='alert'; v.flags=['Impossible jump (>300 km / step)'];
       addAlert(v,'GPS anomaly — position jump inconsistent with speed'); pushBrief(); continue;
     }
+    if(v.scenario==='rv' && tick===16){
+      v.status='watch'; v.flags=['Mid-ocean rendezvous pattern — matched drift with MV SILVER REEF'];
+      const cargo=state.vessels.find(x=>x.name==='SILVER REEF');
+      if(cargo && cargo.status==='ok'){ cargo.status='watch'; cargo.flags=['Matched drift with SV TRADEWIND DRIFTER']; }
+      addAlert(v,'Possible mid-ocean rendezvous (yacht × cargo) — matched loiter, open water'); pushBrief();
+    }
+    if(v.scenario==='darkArrival' && tick===22){
+      v.status='dark'; v.flags=['AIS dark ~90 nm E of Lau Group — inbound, no clearance port call'];
+      addAlert(v,'Yacht went dark inbound to the Lau Group — no port-of-entry clearance on file'); pushBrief(); continue;
+    }
     // normal movement
     const rad = v.hdg*Math.PI/180;
     const dps = (v.spd*0.514) / (111320) ; // m/s -> deg/s (approx, lat)
@@ -625,6 +684,18 @@ function stepFleet(){
     v.track.push([v.lon,v.lat]); if(v.track.length>40) v.track.shift();
     // behavioural: loiter near a reef/report
     if(v.scenario==='loiter' && v.status==='ok' && tick>4){ v.status='watch'; v.flags=['Loitering < 2 kn']; }
+    // yacht clearance rule: anchored away from any designated port of entry
+    if(v.type==='Yacht' && v.status==='ok'){
+      v.stopped = v.spd<1.2 ? (v.stopped||0)+1 : 0;
+      if(v.stopped===8){
+        const p=nearestPoE(v.lon,v.lat);
+        if(p.km>50){
+          v.status='watch';
+          v.flags.push(`Anchored ${Math.round(p.km)} km from nearest port of entry (${p.name}) — no clearance record`);
+          addAlert(v,'Yacht at anchor away from any port of entry — check clearance status'); pushBrief();
+        }
+      }
+    }
   }
   if(state.mod==='ais' || state.mod==='overview') renderContext();
   updateChips();
@@ -889,6 +960,11 @@ function drawVessels(){
       // last-known ghost marker
       ctx.beginPath(); ctx.arc(x,y,6,0,7); ctx.strokeStyle=col; ctx.setLineDash([2,2]); ctx.lineWidth=1.4; ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle=col; ctx.font='9px '+css('--mono'); ctx.fillText('LKP', x+8, y-6);
+    } else if(v.type==='Yacht'){
+      // hollow sail triangle — Class B / small craft
+      ctx.save(); ctx.translate(x,y); ctx.rotate(v.hdg*Math.PI/180);
+      ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(4,5); ctx.lineTo(-4,5); ctx.closePath();
+      ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.stroke(); ctx.restore();
     } else {
       // heading triangle
       ctx.save(); ctx.translate(x,y); ctx.rotate(v.hdg*Math.PI/180);
@@ -919,6 +995,15 @@ function drawReports(){
     ctx.beginPath(); ctx.moveTo(x,y-8); ctx.lineTo(x+6,y); ctx.lineTo(x,y+8); ctx.lineTo(x-6,y); ctx.closePath();
     ctx.fillStyle=css('--sand'); ctx.fill(); ctx.strokeStyle=css('--abyss'); ctx.lineWidth=1.2; ctx.stroke();
     ctx.fillStyle=css('--sand'); ctx.font='9px '+css('--mono'); ctx.fillText('◈ '+(r.island||'sighting'), x+9, y+3);
+  }
+  // community yacht-watchlist entries (hollow diamond — last-seen position)
+  for(const w of state.yachtWatch){
+    if(w.lat==null) continue;
+    const [x,y]=project(w.lon<0?w.lon+360:w.lon, w.lat);
+    if(x<-20||x>view.w+20) continue;
+    ctx.beginPath(); ctx.moveTo(x,y-7); ctx.lineTo(x+5.5,y); ctx.lineTo(x,y+7); ctx.lineTo(x-5.5,y); ctx.closePath();
+    ctx.strokeStyle=css('--cyan'); ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle=css('--cyan'); ctx.font='9px '+css('--mono'); ctx.fillText('⛵ '+w.name, x+8, y+3);
   }
 }
 function drawDrift(){
@@ -981,6 +1066,7 @@ function pickOnMap(cb){ state.placing=cb; canvas.classList.add('placing'); $('#p
 const CTX = {
   overview: renderOverview,
   ais: renderAIS,
+  yachts: renderYachts,
   drift: renderDrift,
   reports: renderReports,
   adsb: renderADSB,
@@ -1068,6 +1154,76 @@ function renderAIS(){
   }
   $('#ctxBody').innerHTML=h;
   $$('.card[data-v]').forEach(c=>c.onclick=()=>{ state.selected=c.dataset.v; renderAIS(); draw(); });
+}
+
+function renderYachts(){
+  const yachts=state.vessels.filter(v=>v.type==='Yacht');
+  const flagged=yachts.filter(v=>v.status!=='ok');
+  setHead('SMALL CRAFT','Yacht Watch','Sailing yachts and small craft. The seasonal cruising route from the Americas (the “Coconut Milk Run”) overlaps the eastern cocaine corridor — trafficking yachts hide among legitimate cruisers.');
+  let h = `
+    <div class="stat-grid">
+      <div class="stat"><div class="n">${yachts.length}</div><div class="l">Yachts (Class B)</div></div>
+      <div class="stat ${flagged.length?'watch':''}"><div class="n">${flagged.length}</div><div class="l">Flagged</div></div>
+      <div class="stat"><div class="n">${state.yachtWatch.length}</div><div class="l">Watchlist</div></div>
+      <div class="stat"><div class="n">${PORTS_OF_ENTRY.length}</div><div class="l">Entry ports</div></div>
+    </div>
+    <div class="hint" style="margin-bottom:10px">Automated rules for small craft: <b>mid-ocean rendezvous</b> (matched drift with another vessel in open water), <b>dark arrival</b> (AIS ceases inbound to an island group), and <b>anchored &gt;50 km from any port of entry</b> with no clearance record.</div>`;
+  const sorted=[...yachts].sort((a,b)=>(a.status==='ok')-(b.status==='ok'));
+  for(const v of sorted){
+    const col=v.status==='ok'?'ok':v.status==='watch'?'watch':'alert';
+    h += `<div class="card clickable" data-y="${v.id}">
+      <div class="title"><span class="pill ${col}">${v.status}</span> ${v.name}</div>
+      <div class="meta">Class B · MMSI ${v.mmsi} · ${v.spd.toFixed(1)} kn · ${latStr(v.lat)} ${lonStr(v.lon)}${v.flags.length?'<br>⚑ '+v.flags.join(' · '):''}</div>
+    </div>`;
+  }
+  h += `<div class="hr"></div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-faint);margin:2px 0 8px;font-weight:700">Community watchlist — no AIS required</div>
+    <div class="hint" style="margin-bottom:8px">Many suspect yachts transmit nothing. Log what marinas, fishermen and villagers actually see — name on the hull, sail number, colour, where and when.</div>
+    <button class="btn" id="ywAdd">＋ Add yacht to watchlist</button>
+    <div id="ywForm"></div>
+    <div id="ywList" style="margin-top:10px"></div>`;
+  $('#ctxBody').innerHTML=h;
+  $$('.card[data-y]').forEach(c=>c.onclick=()=>{ state.selected=c.dataset.y; setMod('ais'); draw(); });
+  $('#ywAdd').onclick=()=>{
+    $('#ywForm').innerHTML=`
+      <div class="card" style="margin-top:10px">
+        <div class="field"><label>Yacht name / sail no.</label><input id="ywName" placeholder="e.g. “Sea Ghost”, sail FJ-221"></div>
+        <div class="field"><label>Description</label><textarea id="ywDesc" placeholder="Hull colour, rig, dinghy, crew, behaviour…"></textarea></div>
+        <div class="row2">
+          <div class="field"><label>Last seen lat</label><input id="ywLat" class="mono-in" placeholder="-18.40"></div>
+          <div class="field"><label>Last seen lon</label><input id="ywLon" class="mono-in" placeholder="178.13"></div>
+        </div>
+        <button class="btn ghost small" id="ywPick" style="margin-bottom:10px">⌖ Pick last-seen position</button>
+        <div class="btn-row"><button class="btn" id="ywSave">Save</button><button class="btn ghost" id="ywCancel">Cancel</button></div>
+      </div>`;
+    $('#ywPick').onclick=()=>pickOnMap((lon,lat)=>{ $('#ywLat').value=lat.toFixed(4); $('#ywLon').value=(lon>180?lon-360:lon).toFixed(4); });
+    $('#ywCancel').onclick=()=>{ $('#ywForm').innerHTML=''; };
+    $('#ywSave').onclick=()=>{
+      const name=$('#ywName').value.trim(); if(!name){ toast('Give the yacht a name or sail number'); return; }
+      const lat=parseFloat($('#ywLat').value), lon=parseFloat($('#ywLon').value);
+      state.yachtWatch.unshift({ id:'w'+Date.now(), name, desc:$('#ywDesc').value,
+        lat:isNaN(lat)?null:lat, lon:isNaN(lon)?null:lon, created:Date.now() });
+      save('kaila.yachtwatch', state.yachtWatch);
+      $('#ywForm').innerHTML=''; renderYachts(); updateChips(); draw(); pushBrief(); toast('Watchlist entry saved');
+    };
+  };
+  listYachtWatch();
+}
+function listYachtWatch(){
+  const el=$('#ywList'); if(!el) return;
+  if(!state.yachtWatch.length){ el.innerHTML=`<div class="empty">Watchlist empty. A hull description from a marina is intelligence too.</div>`; return; }
+  el.innerHTML=state.yachtWatch.map(w=>`
+    <div class="card">
+      <div class="title"><span class="pill info">watch</span> ${escapeHtml(w.name)}</div>
+      ${w.lat!=null?`<div class="meta">Last seen ${latStr(w.lat)} ${lonStr(w.lon)}</div>`:''}
+      ${w.desc?`<div class="notes">${escapeHtml(w.desc)}</div>`:''}
+      <div class="btn-row" style="margin-top:9px">
+        ${w.lat!=null?`<button class="btn ghost small" data-wfocus="${w.id}">Show</button>`:''}
+        <button class="btn ghost small" data-wdel="${w.id}">Delete</button>
+      </div>
+    </div>`).join('');
+  $$('[data-wfocus]',el).forEach(b=>b.onclick=()=>{ const w=state.yachtWatch.find(x=>x.id===b.dataset.wfocus); view.cx=w.lon<0?w.lon+360:w.lon; view.cy=w.lat; view.scale=60; draw(); });
+  $$('[data-wdel]',el).forEach(b=>b.onclick=()=>{ state.yachtWatch=state.yachtWatch.filter(x=>x.id!==b.dataset.wdel); save('kaila.yachtwatch',state.yachtWatch); listYachtWatch(); updateChips(); draw(); pushBrief(); });
 }
 
 function startDriftFrom(lon,lat,mode){
@@ -1301,12 +1457,17 @@ function buildBrief(){
   const watch=state.vessels.filter(v=>v.status==='watch');
   let s=`# KAILA — DAILY OCEAN WATCH BRIEF\n`;
   s+=`Region: South Pacific (Melanesia–Polynesia belt) · Generated: ${now} UTC\nClassification: PROTOTYPE / UNCLASSIFIED\n\n`;
+  const yachts=state.vessels.filter(v=>v.type==='Yacht');
   s+=`## 1. Summary\n`;
-  s+=`- Vessels tracked: ${state.vessels.length}\n- Dark vessels: ${dark.length}\n- GPS anomalies: ${anom.length}\n- Loitering/behavioural flags: ${watch.length}\n- Open community sightings: ${state.reports.length}\n\n`;
+  s+=`- Vessels tracked: ${state.vessels.length} (incl. ${yachts.length} yachts / Class B)\n- Dark vessels: ${dark.length}\n- GPS anomalies: ${anom.length}\n- Loitering/behavioural flags: ${watch.length}\n- Yacht watchlist (community, non-AIS): ${state.yachtWatch.length}\n- Open community sightings: ${state.reports.length}\n\n`;
   s+=`## 2. Vessels of interest\n`;
   const voi=[...dark,...anom,...watch];
   if(!voi.length) s+=`- None.\n`;
-  else voi.forEach(v=>{ s+=`- ${v.name} (MMSI ${v.mmsi}, ${v.type}) — ${v.flags.join('; ')||v.status} @ ${latStr(v.lat)} ${lonStr(v.lon)}\n`; });
+  else voi.forEach(v=>{ s+=`- ${v.name} (MMSI ${v.mmsi}, ${v.type}${v.cls==='B'?' / Class B':''}) — ${v.flags.join('; ')||v.status} @ ${latStr(v.lat)} ${lonStr(v.lon)}\n`; });
+  if(state.yachtWatch.length){
+    s+=`\nYacht watchlist (community reports, no AIS):\n`;
+    state.yachtWatch.forEach(w=>{ s+=`- ${w.name}${w.lat!=null?` — last seen ${latStr(w.lat)} ${lonStr(w.lon)}`:''}${w.desc?` — ${w.desc}`:''}\n`; });
+  }
   s+=`\n## 3. Community sightings\n`;
   if(!state.reports.length) s+=`- None filed.\n`;
   else state.reports.forEach(r=>{ s+=`- ${r.type} near ${r.island} @ ${latStr(r.lat)} ${lonStr(r.lon)} (${r.when||'time n/r'})${r.notes?` — ${r.notes}`:''}\n`; });
@@ -1330,6 +1491,9 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':
 function updateChips(){
   $('#aisCount').textContent=state.vessels.length;
   $('#repCount').textContent=state.reports.length;
+  const yachts=state.vessels.filter(v=>v.type==='Yacht');
+  const yc=$('#ytCount');
+  if(yc){ yc.textContent=yachts.length + (state.yachtWatch.length?'+'+state.yachtWatch.length:''); yc.classList.toggle('alert', yachts.some(v=>v.status!=='ok')); }
   const flagged=state.vessels.filter(v=>v.status!=='ok').length;
   const c=$('#aisCount'); c.classList.toggle('alert', flagged>0);
   $('#vesselChip').textContent=`${state.vessels.length} vessels · ${flagged} flagged`;
@@ -1342,11 +1506,14 @@ function updateChips(){
 function connectLiveAIS(apiKey, bbox=[[-40,150],[-4,180]]){ // AISStream bbox: [[lat,lon],[lat,lon]] in -180..180; widen/split for the eastern Pacific
   try{
     const ws=new WebSocket('wss://stream.aisstream.io/v0/stream');
-    ws.onopen=()=>ws.send(JSON.stringify({ APIKey:apiKey, BoundingBoxes:[bbox], FilterMessageTypes:['PositionReport'] }));
+    // Class A (ships) + Class B (yachts / small craft)
+    ws.onopen=()=>ws.send(JSON.stringify({ APIKey:apiKey, BoundingBoxes:[bbox], FilterMessageTypes:['PositionReport','StandardClassBPositionReport'] }));
     ws.onmessage=ev=>{
-      const m=JSON.parse(ev.data); const pr=m.Message?.PositionReport; if(!pr) return;
+      const m=JSON.parse(ev.data);
+      const isB=!!m.Message?.StandardClassBPositionReport;
+      const pr=m.Message?.PositionReport || m.Message?.StandardClassBPositionReport; if(!pr) return;
       const id='ais'+pr.UserID; let v=state.vessels.find(x=>x.id===id);
-      if(!v){ v={ id, mmsi:pr.UserID, name:(m.MetaData?.ShipName||'AIS '+pr.UserID).trim(), type:'AIS', lon:pr.Longitude, lat:pr.Latitude, hdg:pr.Cog||0, spd:pr.Sog||0, track:[], status:'ok', flags:[], lastSeen:0 }; state.vessels.push(v); }
+      if(!v){ v={ id, mmsi:pr.UserID, name:(m.MetaData?.ShipName||'AIS '+pr.UserID).trim(), type:isB?'Yacht':'AIS', cls:isB?'B':'A', lon:pr.Longitude, lat:pr.Latitude, hdg:pr.Cog||0, spd:pr.Sog||0, track:[], status:'ok', flags:[], lastSeen:0, stopped:0 }; state.vessels.push(v); }
       v.lon=pr.Longitude; v.lat=pr.Latitude; v.hdg=pr.Cog||v.hdg; v.spd=pr.Sog||0; v.track.push([v.lon,v.lat]); if(v.track.length>40)v.track.shift();
       draw(); updateChips();
     };

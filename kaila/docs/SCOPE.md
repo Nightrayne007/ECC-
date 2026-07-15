@@ -72,6 +72,24 @@ eastern drops ride the South Equatorial Current toward Fiji/Melanesia.
 
 ---
 
+## 4b. The yacht vector
+
+Reporting on the Pacific corridor repeatedly features **sailing yachts** as
+carriers — small craft crossing from South America that blend into the
+seasonal cruising fleet (the "Coconut Milk Run", May–October, whose route is
+essentially the same track as the eastern cocaine corridor). Operationally
+relevant behaviours KAILA's Yacht Watch module encodes as rules:
+
+- **Mid-ocean rendezvous** — a yacht matching drift with a larger vessel in
+  open water (transfer at sea).
+- **Dark arrival** — Class B AIS ceasing on approach to an island group.
+- **Clearance mismatch** — anchoring in remote qoliqoli/atolls without ever
+  appearing in a port-of-entry clearance record.
+
+Most suspect yachts transmit no AIS at all, which is why the module pairs the
+automated rules with a **community watchlist** built from what marinas,
+fishermen and villagers actually see.
+
 ## 5. Criminal actors (as reported)
 
 Latin American cartels, Asian syndicates and Triads, Australian/NZ outlaw

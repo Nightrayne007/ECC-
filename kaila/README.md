@@ -84,6 +84,7 @@ browser), and the intelligence brief all run with no connection. Live feeds
 |--------|--------------|
 | **Overview** | Basin picture, safety guidance, live alert stream, key counts. |
 | **Vessel Tracking** | Contact list + detail. Behavioural flags: **dark vessel** (AIS dropout), **loitering**, **impossible position jump** (AIS spoofing). |
+| **Yacht Watch** | Small-craft tracking (Class B AIS): **mid-ocean rendezvous**, **dark arrival**, and **anchored-without-clearance** rules against designated ports of entry — plus a community watchlist for yachts transmitting no AIS at all. |
 | **Drift Analysis** | **Reverse-drift** — from a wash-up point, estimate the origin/drop zone. **Forward-drift** — from a drop point, predict landfall. Lagrangian particle ensemble. |
 | **Sighting Reports** | Community intake. Pin a location, record type/time/notes, export JSON/CSV, and run drift straight from a report. |
 | **Air Correlation** | ADS-B overlay — light aircraft over open-water drop zones can indicate aerial resupply or spotting. |
