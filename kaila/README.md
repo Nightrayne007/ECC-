@@ -50,6 +50,10 @@ corridors**, both represented on KAILA's map:
   **Australia and New Zealand**.
 - **Western methamphetamine route** — from Southeast Asian labs down through
   **Melanesia** (PNG, Solomon Islands, Vanuatu).
+- **Meth from the Americas** also rides the eastern approaches, and the map
+  distinguishes **direct sea**, **secondary sea** (hub redistribution) and
+  **air** routes — plus the **at-sea transshipment zone** in Tonga–Cook
+  Islands waters and **Fiji as the land transshipment hub**.
 
 Bales are wrapped waterproof, lashed with rope/netting, floated on **solar GPS
 buoys**, and left at "floating transit points" for later pickup. When ropes

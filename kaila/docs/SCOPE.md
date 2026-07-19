@@ -36,9 +36,34 @@ high-value **Australian and New Zealand** markets. Cocaine dominates.
 From **Southeast Asian** labs, flowing down through **Melanesia** (Palau, Papua
 New Guinea, Solomons, Vanuatu). Methamphetamine dominates.
 
+### Methamphetamine from the Americas
+Meth does **not** come only from Asia: flow charts of the corridor ("Flow of
+Meth and Cocaine from the Americas") show a second meth stream arriving from
+**North America** on the same eastern approaches as cocaine — both drugs
+converging on the Fiji hub before redistribution.
+
 **Fiji and PNG are named as key convergence nodes.** The region's isolation —
 once a barrier — now offers lightly patrolled waters ideal for **ship-to-ship
 transfers** and **sea drops**.
+
+### Route taxonomy and the at-sea transfer zone
+
+Route mapping of the corridor distinguishes three classes, all rendered on
+KAILA's map:
+
+- **Direct sea routes** — primary supply runs from the Americas / SE Asia.
+- **Secondary sea routes** — redistribution legs out of the Fiji hub and the
+  transfer zone toward Australia and New Zealand.
+- **Air routes** — long-haul air freight/courier flows from the Americas and
+  hub-to-market legs (Fiji → AU/NZ), cross-checked by KAILA's ADS-B module.
+
+Two transshipment modes anchor the picture:
+
+- **Transshipment at sea** — a transfer zone in the **Tonga–Cook Islands
+  waters east of Fiji** where cargo moves vessel-to-vessel mid-ocean (the 2023
+  floating-transit-point seizure sits on this zone's southern approaches).
+- **Transshipment on land — Fiji** — the islands themselves as the repack /
+  staging hub before the final run to market.
 
 ---
 
