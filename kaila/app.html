@@ -518,6 +518,17 @@ const CORRIDORS = [
 // vessel-to-vessel at sea before the final run in. Matches reported practice
 // and the 2023 floating-transit-point seizure geometry.
 const TRANSSHIP_ZONE = { cx:195.5, cy:-19.3, rx:8.2, ry:3.7, rot:-0.16, label:'TRANSSHIPMENT AT SEA' };
+// Point-in-zone test in the same rotated frame the ellipse is drawn in.
+// The zone is a behavioural HOT ZONE: watch-level flags escalate to alert
+// inside it, and going stationary inside it is itself an alert.
+function inTransshipZone(lon,lat){
+  const z=TRANSSHIP_ZONE;
+  const u=(lon-z.cx)*COSLAT, v=-(lat-z.cy);          // screen-orientation frame
+  const c=Math.cos(z.rot), s=Math.sin(z.rot);
+  const ur=u*c+v*s, vr=-u*s+v*c;                     // un-rotate
+  const a=z.rx*COSLAT, b=z.ry;
+  return (ur*ur)/(a*a)+(vr*vr)/(b*b) <= 1;
+}
 
 /* ---------------------------------------------------------------------------
    2. Map: equirectangular projection with pan/zoom on a canvas
@@ -614,6 +625,10 @@ function seedFleet(){
   fleet[6].scenario = 'loiter';    // low-speed circling near reef (behavioural)
   fleet[6].spd = 1.2;
   fleet[9].scenario = 'jump';      // impossible position jump (AIS spoof)
+  // DELANA sits nearly stationary inside the at-sea transshipment zone —
+  // the zone hot rule should pick this up with no scripted flag.
+  fleet[10].lon=196.2; fleet[10].lat=-19.6; fleet[10].spd=0.9; fleet[10].type='Cargo';
+  fleet[10].track=[[196.2,-19.6]];
 
   // Sailing yachts on the seasonal cruising route ("Coconut Milk Run") —
   // Marquesas -> Tuamotus -> Society Is. -> Cooks -> Tonga -> Fiji. The same
@@ -709,6 +724,21 @@ function stepFleet(){
           v.flags.push(`Anchored ${Math.round(p.km)} km from nearest port of entry (${p.name}) — no clearance record`);
           addAlert(v,'Yacht at anchor away from any port of entry — check clearance status'); pushBrief();
         }
+      }
+    }
+    // transshipment-zone hot rules: the zone tolerates transit, not lingering
+    {
+      const inZ=inTransshipZone(v.lon,v.lat);
+      v.zstop = (inZ && v.spd<2) ? (v.zstop||0)+1 : 0;
+      if(v.zstop===6 && v.status!=='alert'){
+        v.status='alert';
+        v.flags.push('Stationary inside the at-sea transshipment zone');
+        addAlert(v,'Vessel stationary inside the at-sea transshipment zone — possible transfer in progress'); pushBrief();
+      }
+      if(inZ && v.status==='watch' && !v.zoneEsc){
+        v.zoneEsc=true; v.status='alert';
+        v.flags.push('Behavioural flag raised inside the transshipment zone — escalated');
+        addAlert(v,'Watch-level behaviour inside the transshipment zone — escalated to ALERT'); pushBrief();
       }
     }
   }
@@ -1170,6 +1200,7 @@ function renderAIS(){
           Position ..... ${latStr(sel.lat)}  ${lonStr(sel.lon)}<br>
           Course ....... ${Math.round((sel.hdg%360+360)%360)}°<br>
           Speed ........ ${sel.spd.toFixed(1)} kn<br>
+          ${inTransshipZone(sel.lon,sel.lat)?`Zone ......... INSIDE at-sea transshipment zone<br>`:''}
           ${sel.status==='dark'?`Last seen .... ${sel.lastSeen} steps ago`:''}
         </div>
         ${sel.flags.length?`<div class="notes">⚑ ${sel.flags.join(' · ')}</div>`:''}
@@ -1192,7 +1223,7 @@ function renderAIS(){
     const col = v.status==='ok'?'ok':v.status==='watch'?'watch':'alert';
     h += `<div class="card clickable" data-v="${v.id}">
       <div class="title"><span class="pill ${col}">${v.status}</span> ${v.name}</div>
-      <div class="meta">${v.type} · MMSI ${v.mmsi} · ${v.spd.toFixed(1)} kn · ${latStr(v.lat)} ${lonStr(v.lon)}${v.flags.length?'<br>⚑ '+v.flags.join(' · '):''}</div>
+      <div class="meta">${v.type} · MMSI ${v.mmsi} · ${v.spd.toFixed(1)} kn · ${latStr(v.lat)} ${lonStr(v.lon)}${inTransshipZone(v.lon,v.lat)?' · <b>IN ZONE</b>':''}${v.flags.length?'<br>⚑ '+v.flags.join(' · '):''}</div>
     </div>`;
   }
   $('#ctxBody').innerHTML=h;
@@ -1502,7 +1533,8 @@ function buildBrief(){
   s+=`Region: South Pacific (Melanesia–Polynesia belt) · Generated: ${now} UTC\nClassification: PROTOTYPE / UNCLASSIFIED\n\n`;
   const yachts=state.vessels.filter(v=>v.type==='Yacht');
   s+=`## 1. Summary\n`;
-  s+=`- Vessels tracked: ${state.vessels.length} (incl. ${yachts.length} yachts / Class B)\n- Dark vessels: ${dark.length}\n- GPS anomalies: ${anom.length}\n- Loitering/behavioural flags: ${watch.length}\n- Yacht watchlist (community, non-AIS): ${state.yachtWatch.length}\n- Open community sightings: ${state.reports.length}\n\n`;
+  const inZone=state.vessels.filter(v=>inTransshipZone(v.lon,v.lat));
+  s+=`- Vessels tracked: ${state.vessels.length} (incl. ${yachts.length} yachts / Class B)\n- Dark vessels: ${dark.length}\n- GPS anomalies: ${anom.length}\n- Loitering/behavioural flags: ${watch.length}\n- Vessels inside the at-sea transshipment zone: ${inZone.length}${inZone.length?` (${inZone.map(v=>v.name).join(', ')})`:''}\n- Yacht watchlist (community, non-AIS): ${state.yachtWatch.length}\n- Open community sightings: ${state.reports.length}\n\n`;
   s+=`## 2. Vessels of interest\n`;
   const voi=[...dark,...anom,...watch];
   if(!voi.length) s+=`- None.\n`;

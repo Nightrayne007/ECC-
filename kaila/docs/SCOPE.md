@@ -65,6 +65,14 @@ Two transshipment modes anchor the picture:
 - **Transshipment on land — Fiji** — the islands themselves as the repack /
   staging hub before the final run to market.
 
+KAILA operationalizes the at-sea zone as a **behavioural hot zone**: transit
+through it is normal, but **going stationary inside it** (< 2 kn sustained)
+raises an immediate **alert** — the signature of a transfer in progress — and
+any watch-level flag (loitering, rendezvous, clearance mismatch) that occurs
+**inside** the zone is automatically **escalated from watch to alert**.
+Vessels currently inside the zone are counted in every intelligence brief and
+tagged `IN ZONE` in the contact list.
+
 ---
 
 ## 3. The drop-and-retrieve method (why drift modelling matters)
